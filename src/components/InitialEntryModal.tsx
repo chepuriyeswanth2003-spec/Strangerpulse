@@ -37,7 +37,7 @@ export const InitialEntryModal: React.FC<InitialEntryModalProps> = ({
   const [entryMode, setEntryMode] = useState<'choose' | 'guest'>('choose');
 
   // Guest details state
-  const [displayName, setDisplayName] = useState(profile.displayName || 'Friendly Stranger');
+  const [displayName, setDisplayName] = useState(profile.displayName || '');
   const [gender, setGender] = useState<Gender>(profile.gender || 'prefer-not-to-say');
   const [country, setCountry] = useState(profile.country || 'United States');
   const [selectedInterests, setSelectedInterests] = useState<string[]>(profile.interests || ['Gaming', 'Music']);
@@ -58,6 +58,10 @@ export const InitialEntryModal: React.FC<InitialEntryModalProps> = ({
 
   const handleGuestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!displayName.trim()) {
+      setError('Please enter your nickname to continue.');
+      return;
+    }
     if (!is18Confirmed) {
       setError('You must confirm that you are 18 years of age or older to enter.');
       return;
@@ -67,7 +71,7 @@ export const InitialEntryModal: React.FC<InitialEntryModalProps> = ({
 
     const updatedProfile: UserProfile = {
       ...profile,
-      displayName: displayName.trim() || 'Guest Stranger',
+      displayName: displayName.trim(),
       gender,
       country,
       interests: selectedInterests,

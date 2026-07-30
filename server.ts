@@ -147,6 +147,8 @@ async function startServer() {
       origin: '*',
       methods: ['GET', 'POST'],
     },
+    pingInterval: 10000,
+    pingTimeout: 25000,
   });
 
   // SEO Endpoints
@@ -464,7 +466,7 @@ async function startServer() {
     socket.on('skip_stranger', (data: { roomId: string }) => {
       const room = activeRooms.get(data.roomId);
       if (room) {
-        socket.to(data.roomId).emit('stranger_disconnected');
+        io.to(data.roomId).emit('stranger_disconnected');
         activeRooms.delete(data.roomId);
       }
     });
@@ -502,7 +504,7 @@ async function startServer() {
         }
         blockedPairs.add(`${socket.id}_${partnerId}`);
         blockedPairs.add(`${partnerId}_${socket.id}`);
-        socket.to(data.roomId).emit('stranger_disconnected');
+        io.to(data.roomId).emit('stranger_disconnected');
         activeRooms.delete(data.roomId);
       }
     });
@@ -517,7 +519,7 @@ async function startServer() {
         }
         blockedPairs.add(`${socket.id}_${partnerId}`);
         blockedPairs.add(`${partnerId}_${socket.id}`);
-        socket.to(data.roomId).emit('stranger_disconnected');
+        io.to(data.roomId).emit('stranger_disconnected');
         activeRooms.delete(data.roomId);
       }
     });
@@ -531,7 +533,7 @@ async function startServer() {
       // Clean active rooms
       for (const [roomId, room] of activeRooms.entries()) {
         if (room.userA === socket.id || room.userB === socket.id) {
-          socket.to(roomId).emit('stranger_disconnected');
+          io.to(roomId).emit('stranger_disconnected');
           activeRooms.delete(roomId);
         }
       }

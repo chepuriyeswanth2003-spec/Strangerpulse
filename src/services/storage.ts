@@ -14,7 +14,7 @@ export const DEFAULT_FILTERS: MatchFilters = {
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
-  displayName: 'Friendly Stranger',
+  displayName: '',
   gender: 'prefer-not-to-say',
   country: 'United States',
   stateRegion: '',

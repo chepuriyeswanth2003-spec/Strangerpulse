@@ -40,7 +40,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   const [copied, setCopied] = useState(false);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
   const [dismissedIcebreakers, setDismissedIcebreakers] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Pick 3 random icebreakers when a new stranger connects
   useEffect(() => {
@@ -63,9 +63,11 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     setDismissedIcebreakers(true);
   };
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll inside chat container ONLY (prevents mobile page scrolling to bottom)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, isPartnerTyping]);
 
   const handleSend = (e?: React.FormEvent) => {
@@ -163,7 +165,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
       </div>
 
       {/* Message Stream */}
-      <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-3.5">
+      <div ref={chatContainerRef} className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-3.5">
         {messages.map((msg) => {
           if (msg.sender === 'system') {
             return (
