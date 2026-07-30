@@ -211,8 +211,6 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
             <span>Stranger is typing...</span>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Icebreaker Questions Bar (Appears when connected to stranger and not dismissed) */}
