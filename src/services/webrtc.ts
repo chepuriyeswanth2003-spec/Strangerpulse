@@ -28,7 +28,17 @@ const getIceServers = (): RTCConfiguration => {
       credential: turnCredential,
     },
     {
+      urls: 'turns:openrelay.metered.ca:443',
+      username: turnUsername,
+      credential: turnCredential,
+    },
+    {
       urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: turnUsername,
+      credential: turnCredential,
+    },
+    {
+      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
       username: turnUsername,
       credential: turnCredential,
     },
@@ -102,15 +112,15 @@ export class WebRTCManager {
     this.peerConnection = new RTCPeerConnection(config);
     this.remoteStream = new MediaStream();
 
-    // Start 12-second connection timeout
+    // Start 25-second connection timeout for slow mobile ICE candidate gathering
     this.connectionTimeoutTimer = setTimeout(() => {
       if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
-        console.warn('WebRTC peer connection timed out after 12 seconds');
+        console.warn('WebRTC peer connection timed out after 25 seconds');
         if (this.onConnectionTimeoutCallback) {
           this.onConnectionTimeoutCallback();
         }
       }
-    }, 12000);
+    }, 25000);
 
     // Add local tracks & set bitrate floor + degradation preference
     if (this.localStream) {

@@ -50,6 +50,7 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isMobileChatOpen, setIsMobileChatOpen] = useState(true);
 
   // Check for hidden /adminpanel route access
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function App() {
     });
   };
 
-  const currentMode = profile.preferredFilters.mode || 'text';
+  const currentMode = roomInfo?.mode || profile.preferredFilters.mode || 'text';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-indigo-500 selection:text-white">
@@ -112,7 +113,7 @@ export default function App() {
       />
 
       {/* Main App Canvas */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 flex flex-col gap-4">
         
         {/* State 1: IDLE WELCOME & DASHBOARD */}
         {status === 'idle' && (
@@ -181,19 +182,19 @@ export default function App() {
                 )}
               </div>
 
-              {/* Matchmaking Filter Recap Card */}
+              {/* Match Preferences Card */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
                     <Filter className="w-4 h-4 text-purple-500" />
-                    <span>Matching Filters</span>
+                    <span>Match Filters</span>
                   </div>
                   <button
                     onClick={() => setIsProfileOpen(true)}
                     id="edit-filters-card-btn"
                     className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline"
                   >
-                    Configure
+                    Adjust
                   </button>
                 </div>
 
@@ -315,38 +316,68 @@ export default function App() {
 
         {/* State 3: CONNECTED ACTIVE CHAT */}
         {status === 'connected' && roomInfo && (
-          <div className="flex-1 flex flex-col gap-4 min-h-[500px]">
+          <div className="flex-1 flex flex-col gap-3 min-h-[480px]">
             
-            {/* Grid layout depending on Mode */}
-            <div className={`flex-1 grid gap-4 ${roomInfo.mode === 'video' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-              
-              {/* WebRTC Video Stream Container */}
-              {roomInfo.mode === 'video' && (
-                <VideoContainer
-                  localStream={localStream}
-                  remoteStream={remoteStream}
+            {/* Responsive Video & Chat Layout */}
+            {roomInfo.mode === 'video' ? (
+              <div className="flex-1 relative flex flex-col lg:grid lg:grid-cols-2 gap-4 min-h-[450px]">
+                
+                {/* WebRTC Video Stream Container */}
+                <div className="flex-1 relative min-h-[360px] sm:min-h-[450px] rounded-3xl overflow-hidden">
+                  <VideoContainer
+                    localStream={localStream}
+                    remoteStream={remoteStream}
+                    partnerProfile={roomInfo.partnerProfile}
+                    isVideoEnabled={isVideoEnabled}
+                    isAudioEnabled={isAudioEnabled}
+                    videoFailed={videoFailed}
+                    onToggleCamera={toggleCamera}
+                    onToggleMic={toggleMic}
+                  />
+
+                  {/* Floating Mobile Chat Toggle Button */}
+                  <button
+                    onClick={() => setIsMobileChatOpen((prev) => !prev)}
+                    className="lg:hidden absolute bottom-20 right-4 z-20 px-3.5 py-2 rounded-2xl bg-indigo-600/90 hover:bg-indigo-600 text-white font-bold text-xs shadow-xl backdrop-blur-md border border-indigo-400/30 flex items-center gap-2 active:scale-95 transition-all"
+                  >
+                    <MessageSquare className="w-4 h-4 text-white" />
+                    <span>{isMobileChatOpen ? 'Hide Chat' : `Chat (${messages.length})`}</span>
+                  </button>
+                </div>
+
+                {/* Floating Overlay on Mobile, Grid Column on Desktop */}
+                <div
+                  className={`${
+                    isMobileChatOpen ? 'flex' : 'hidden lg:flex'
+                  } lg:relative absolute bottom-16 left-2 right-2 max-h-[55vh] lg:max-h-none z-20 flex-col shadow-2xl transition-all duration-300`}
+                >
+                  <ChatBox
+                    messages={messages}
+                    partnerProfile={roomInfo.partnerProfile}
+                    isPartnerTyping={isPartnerTyping}
+                    onSendMessage={sendMessage}
+                    onTyping={notifyTyping}
+                    onReportClick={() => setIsReportOpen(true)}
+                    isMobileOverlay={true}
+                    onCloseMobileOverlay={() => setIsMobileChatOpen(false)}
+                  />
+                </div>
+
+              </div>
+            ) : (
+              <div className="flex-1 grid grid-cols-1 gap-4">
+                <ChatBox
+                  messages={messages}
                   partnerProfile={roomInfo.partnerProfile}
-                  isVideoEnabled={isVideoEnabled}
-                  isAudioEnabled={isAudioEnabled}
-                  videoFailed={videoFailed}
-                  onToggleCamera={toggleCamera}
-                  onToggleMic={toggleMic}
+                  isPartnerTyping={isPartnerTyping}
+                  onSendMessage={sendMessage}
+                  onTyping={notifyTyping}
+                  onReportClick={() => setIsReportOpen(true)}
                 />
-              )}
+              </div>
+            )}
 
-              {/* Chat Message Box */}
-              <ChatBox
-                messages={messages}
-                partnerProfile={roomInfo.partnerProfile}
-                isPartnerTyping={isPartnerTyping}
-                onSendMessage={sendMessage}
-                onTyping={notifyTyping}
-                onReportClick={() => setIsReportOpen(true)}
-              />
-
-            </div>
-
-            {/* Bottom Control Action Bar */}
+            {/* Bottom Control Action Bar (Always visible in Viewport) */}
             <ControlBar
               status={status}
               mode={currentMode}

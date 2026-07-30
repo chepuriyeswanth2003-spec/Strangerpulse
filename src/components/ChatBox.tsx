@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, PublicProfile } from '../types';
-import { Send, Smile, Copy, Check, ShieldAlert, Sparkles, Globe, Heart, MessageSquarePlus, RefreshCw } from 'lucide-react';
+import { Send, Smile, Copy, Check, ShieldAlert, Sparkles, Globe, Heart, MessageSquarePlus, RefreshCw, X } from 'lucide-react';
 import { AdBanner } from './AdBanner';
 
 interface ChatBoxProps {
@@ -10,6 +10,8 @@ interface ChatBoxProps {
   onSendMessage: (text: string) => void;
   onTyping: (isTyping: boolean) => void;
   onReportClick: () => void;
+  isMobileOverlay?: boolean;
+  onCloseMobileOverlay?: () => void;
 }
 
 const EMOJI_LIST = ['👋', '😊', '😂', '🔥', '❤️', '👍', '🎉', '😎', '🙌', '👀'];
@@ -34,6 +36,8 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   onSendMessage,
   onTyping,
   onReportClick,
+  isMobileOverlay = false,
+  onCloseMobileOverlay,
 }) => {
   const [inputText, setInputText] = useState('');
   const [showEmojis, setShowEmojis] = useState(false);
@@ -99,34 +103,29 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-[400px] bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden relative">
+    <div className={`flex-1 flex flex-col h-full ${isMobileOverlay ? 'min-h-[280px] bg-slate-900/95 border-indigo-500/40 backdrop-blur-xl shadow-2xl' : 'min-h-[400px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl'} rounded-3xl border overflow-hidden relative`}>
       
       {/* Header Bar */}
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between">
+      <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between">
         {partnerProfile ? (
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
               {partnerProfile.nickname.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 dark:text-white text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
                   {partnerProfile.nickname}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/20">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-semibold border border-emerald-500/20">
                   Online
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1">
                   <Globe className="w-3 h-3 text-indigo-400" />
                   {partnerProfile.country}
                 </span>
-                {partnerProfile.interests && partnerProfile.interests.length > 0 && (
-                  <span className="hidden sm:inline flex items-center gap-1">
-                    • <Heart className="w-3 h-3 text-pink-400" /> {partnerProfile.interests[0]}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -137,13 +136,13 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
           </div>
         )}
 
-        {/* Copy & Report Controls */}
-        <div className="flex items-center gap-2">
+        {/* Copy, Report, & Mobile Overlay Close */}
+        <div className="flex items-center gap-1.5">
           {messages.length > 0 && (
             <button
               onClick={handleCopyChat}
               id="copy-chat-btn"
-              className="px-2.5 py-1.5 rounded-xl bg-slate-200/60 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
+              className="px-2 py-1.5 rounded-xl bg-slate-200/60 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
               title="Copy Chat Log"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -159,6 +158,16 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
               title="Report Stranger"
             >
               <ShieldAlert className="w-4 h-4" />
+            </button>
+          )}
+
+          {onCloseMobileOverlay && (
+            <button
+              onClick={onCloseMobileOverlay}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Close Floating Chat"
+            >
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
