@@ -150,6 +150,11 @@ async function startServer() {
   });
 
   // SEO Endpoints
+  app.get('/ads.txt', (req, res) => {
+    res.type('text/plain');
+    res.send('google.com, pub-8087434803774295, DIRECT, f08c47fec0942fa0\n');
+  });
+
   app.get('/robots.txt', (req, res) => {
     res.type('text/plain');
     res.send(`User-agent: *\nAllow: /\nDisallow: /adminpanel\nDisallow: /api/admin/\n\nSitemap: ${req.protocol}://${req.get('host')}/sitemap.xml`);
