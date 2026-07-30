@@ -24,9 +24,12 @@ export function useChat() {
   const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [videoFailed, setVideoFailed] = useState<boolean>(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const iceRestartAttemptedRef = useRef<boolean>(false);
+  const recoveryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync profile edits to local storage
   const updateProfile = useCallback((newProfile: UserProfile) => {
@@ -48,6 +51,12 @@ export function useChat() {
       console.log('Match found!', data);
       setRoomInfo(data);
       setStatus('connected');
+      setVideoFailed(false);
+      iceRestartAttemptedRef.current = false;
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
       setMessages([
         {
           id: 'sys_' + Date.now(),
@@ -66,11 +75,59 @@ export function useChat() {
         }
         webrtcManager.onRemoteStreamCallback = (rStream) => {
           setRemoteStream(rStream);
+          setVideoFailed(false);
         };
+
+        webrtcManager.onConnectionStateCallback = (connectionState) => {
+          console.log('[WebRTC Connection State]', connectionState);
+          if (connectionState === 'connected') {
+            setVideoFailed(false);
+            if (recoveryTimerRef.current) {
+              clearTimeout(recoveryTimerRef.current);
+              recoveryTimerRef.current = null;
+            }
+          } else if (connectionState === 'failed' || connectionState === 'disconnected') {
+            if (!iceRestartAttemptedRef.current) {
+              iceRestartAttemptedRef.current = true;
+              console.log('WebRTC connection interrupted. Attempting ICE restart...');
+              webrtcManager.restartIce();
+            }
+
+            if (!recoveryTimerRef.current) {
+              recoveryTimerRef.current = setTimeout(() => {
+                const pc = webrtcManager.getPeerConnection();
+                if (!pc || pc.connectionState !== 'connected') {
+                  console.warn('WebRTC video connection failed after retry.');
+                  setVideoFailed(true);
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: 'sys_' + Date.now(),
+                      sender: 'system',
+                      text: 'Video connection failed — you can keep chatting by text or skip to the next stranger.',
+                      timestamp: Date.now(),
+                    },
+                  ]);
+                }
+              }, 5000);
+            }
+          }
+        };
+
         webrtcManager.onConnectionTimeoutCallback = () => {
-          console.warn('WebRTC connection timed out after 12s. Automatically skipping to next stranger...');
-          skipStrangerRef.current();
+          console.warn('WebRTC connection timed out (12s without stream). Marking video failed...');
+          setVideoFailed(true);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'sys_' + Date.now(),
+              sender: 'system',
+              text: 'Video connection failed — you can keep chatting by text or skip to the next stranger.',
+              timestamp: Date.now(),
+            },
+          ]);
         };
+
         await webrtcManager.initPeerConnection(data.roomId, data.isInitiator);
       }
     });
@@ -96,6 +153,7 @@ export function useChat() {
       webrtcManager.cleanupPeerConnection();
       setRemoteStream(null);
       setRoomInfo(null);
+      setVideoFailed(false);
       setStatus('idle');
     });
 
@@ -150,6 +208,7 @@ export function useChat() {
       webrtcManager.cleanupPeerConnection();
       setRemoteStream(null);
       setRoomInfo(null);
+      setVideoFailed(false);
       setMessages([]);
       setStatus('searching');
 
@@ -171,6 +230,7 @@ export function useChat() {
     webrtcManager.closeAll();
     setLocalStream(null);
     setRemoteStream(null);
+    setVideoFailed(false);
     setStatus('idle');
   }, []);
 
@@ -217,6 +277,7 @@ export function useChat() {
     }
     webrtcManager.cleanupPeerConnection();
     setRemoteStream(null);
+    setVideoFailed(false);
     startMatchmaking();
   }, [roomInfo, startMatchmaking]);
 
@@ -233,6 +294,7 @@ export function useChat() {
     setLocalStream(null);
     setRemoteStream(null);
     setRoomInfo(null);
+    setVideoFailed(false);
     setMessages([]);
     setStatus('idle');
   }, [roomInfo]);
@@ -281,6 +343,7 @@ export function useChat() {
     isAudioEnabled,
     localStream,
     remoteStream,
+    videoFailed,
     startMatchmaking,
     cancelMatchmaking,
     sendMessage,

@@ -32,6 +32,7 @@ export default function App() {
     isAudioEnabled,
     localStream,
     remoteStream,
+    videoFailed,
     startMatchmaking,
     cancelMatchmaking,
     sendMessage,
@@ -327,6 +328,7 @@ export default function App() {
                   partnerProfile={roomInfo.partnerProfile}
                   isVideoEnabled={isVideoEnabled}
                   isAudioEnabled={isAudioEnabled}
+                  videoFailed={videoFailed}
                   onToggleCamera={toggleCamera}
                   onToggleMic={toggleMic}
                 />

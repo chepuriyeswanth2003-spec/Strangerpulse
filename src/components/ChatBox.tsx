@@ -164,6 +164,11 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
         </div>
       </div>
 
+      {/* Persistent Top Ad Banner Slot (Fixed, outside scrollable region) */}
+      <div className="px-3 py-1 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0">
+        <AdBanner format="banner" />
+      </div>
+
       {/* Message Stream */}
       <div ref={chatContainerRef} className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-3.5">
         {messages.map((msg) => {
@@ -275,11 +280,6 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
           ))}
         </div>
       )}
-
-      {/* Inline Ad Unit for Chat Panel */}
-      <div className="px-4 pt-1">
-        <AdBanner format="inline" />
-      </div>
 
       {/* Input Bar */}
       <form

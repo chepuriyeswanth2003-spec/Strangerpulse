@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { PublicProfile } from '../types';
-import { Camera, CameraOff, Mic, MicOff, Maximize, Globe, User, Heart, Sparkles } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff, Maximize, Globe, User, Heart, Sparkles, AlertTriangle, VideoOff } from 'lucide-react';
+import { webrtcManager } from '../services/webrtc';
 
 interface VideoContainerProps {
   localStream: MediaStream | null;
@@ -8,6 +9,7 @@ interface VideoContainerProps {
   partnerProfile: PublicProfile;
   isVideoEnabled: boolean;
   isAudioEnabled: boolean;
+  videoFailed?: boolean;
   onToggleCamera: () => void;
   onToggleMic: () => void;
 }
@@ -18,6 +20,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
   partnerProfile,
   isVideoEnabled,
   isAudioEnabled,
+  videoFailed = false,
   onToggleCamera,
   onToggleMic,
 }) => {
@@ -25,6 +28,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isWeakConnection, setIsWeakConnection] = useState(false);
 
   // Attach local stream
   useEffect(() => {
@@ -39,6 +43,48 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
+
+  // Poll RTCPeerConnection stats every 2 seconds for packet loss or high jitter
+  useEffect(() => {
+    let lastPacketsLost = 0;
+    const interval = setInterval(async () => {
+      const pc = webrtcManager.getPeerConnection();
+      if (!pc || pc.connectionState !== 'connected') {
+        setIsWeakConnection(false);
+        return;
+      }
+
+      try {
+        const stats = await pc.getStats();
+        let currentPacketsLost = 0;
+        let highJitter = false;
+
+        stats.forEach((report) => {
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            if (report.packetsLost !== undefined) {
+              currentPacketsLost = report.packetsLost;
+            }
+            if (report.jitter !== undefined && report.jitter > 0.08) {
+              highJitter = true;
+            }
+          }
+        });
+
+        const lostDelta = currentPacketsLost - lastPacketsLost;
+        lastPacketsLost = currentPacketsLost;
+
+        if (lostDelta > 5 || highJitter) {
+          setIsWeakConnection(true);
+        } else {
+          setIsWeakConnection(false);
+        }
+      } catch (err) {
+        // Ignore stats polling errors on some browsers
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -59,7 +105,19 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
       
       {/* Remote Video (Stranger) */}
       <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
-        {remoteStream && remoteStream.getVideoTracks().length > 0 ? (
+        {videoFailed ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-900/95 max-w-sm rounded-3xl border border-rose-500/30 shadow-2xl mx-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+              <VideoOff className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-white font-bold text-base">Video Connection Failed</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Direct WebRTC stream could not connect. You can keep chatting by text or click Skip for a new stranger.
+              </p>
+            </div>
+          </div>
+        ) : remoteStream && remoteStream.getVideoTracks().length > 0 ? (
           <video
             ref={remoteVideoRef}
             autoPlay
@@ -73,16 +131,16 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
             </div>
             <div>
               <p className="text-white font-bold text-base">{partnerProfile.nickname}</p>
-              <p className="text-xs text-slate-400">Camera is off or connecting video feed...</p>
+              <p className="text-xs text-slate-400">Connecting video feed...</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Top Overlay: Stranger Profile Info */}
+      {/* Top Overlay: Stranger Profile Info & Connection Quality Badge */}
       <div className="relative z-10 p-4 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-transparent flex items-start justify-between">
         <div className="flex flex-col gap-1.5 max-w-[70%]">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
               {partnerProfile.nickname}
@@ -91,6 +149,12 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
               <Globe className="w-3 h-3 text-emerald-400" />
               {partnerProfile.country}
             </span>
+            {isWeakConnection && (
+              <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 backdrop-blur-md animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                Weak Connection
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1">
@@ -170,3 +234,4 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
     </div>
   );
 };
+

@@ -1,25 +1,45 @@
 import { socketService } from './socket';
 
+export const DEFAULT_VIDEO_BITRATE_FLOOR = 500000; // 500 kbps floor
+
+/* 
+ * Note: Metered Open Relay project (openrelay.metered.ca) provides free-tier TURN relay bandwidth (20 GB/mo free).
+ * Load credentials via environment variables VITE_TURN_USERNAME and VITE_TURN_CREDENTIAL (or VITE_TURN_PASSWORD).
+ * If traffic exceeds the free monthly cap, the fallback path is self-hosting coturn on a free-tier VPS
+ * (e.g., Oracle Cloud's Always Free VM instance), which provides unlimited relay bandwidth without maintenance fees.
+ */
 const getIceServers = (): RTCConfiguration => {
-  const stunServers: RTCIceServer[] = [
+  const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME || '';
+  const turnCredential = (import.meta as any).env?.VITE_TURN_CREDENTIAL || (import.meta as any).env?.VITE_TURN_PASSWORD || '';
+  const turnUrl = (import.meta as any).env?.VITE_TURN_URL || '';
+
+  const iceServers: RTCIceServer[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
   ];
 
-  const turnUrl = (import.meta as any).env?.VITE_TURN_URL as string;
-  const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME as string;
-  const turnCredential = (import.meta as any).env?.VITE_TURN_PASSWORD as string;
-
-  if (turnUrl) {
-    stunServers.push({
-      urls: turnUrl,
-      username: turnUsername || undefined,
-      credential: turnCredential || undefined,
-    });
+  if (turnUsername && turnCredential) {
+    iceServers.push(
+      {
+        urls: turnUrl || 'turn:openrelay.metered.ca:80',
+        username: turnUsername,
+        credential: turnCredential,
+      },
+      {
+        urls: turnUrl ? turnUrl.replace(':80', ':443') : 'turn:openrelay.metered.ca:443',
+        username: turnUsername,
+        credential: turnCredential,
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: turnUsername,
+        credential: turnCredential,
+      }
+    );
   }
 
-  return { iceServers: stunServers };
+  return { iceServers };
 };
 
 export class WebRTCManager {
@@ -34,6 +54,10 @@ export class WebRTCManager {
   public onConnectionStateCallback: ((state: RTCPeerConnectionState) => void) | null = null;
   public onConnectionTimeoutCallback: (() => void) | null = null;
 
+  public getPeerConnection(): RTCPeerConnection | null {
+    return this.peerConnection;
+  }
+
   public async getLocalMedia(video: boolean = true, audio: boolean = true): Promise<MediaStream | null> {
     try {
       if (this.localStream) {
@@ -41,7 +65,14 @@ export class WebRTCManager {
       }
 
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: video ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false,
+        video: video
+          ? {
+              width: { min: 480, ideal: 1280 },
+              height: { min: 360, ideal: 720 },
+              frameRate: { ideal: 24, min: 15 },
+              facingMode: 'user',
+            }
+          : false,
         audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
       });
 
@@ -86,13 +117,29 @@ export class WebRTCManager {
       }
     }, 12000);
 
-    // Add local tracks
+    // Add local tracks & set bitrate floor + degradation preference
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         if (this.peerConnection && this.localStream) {
           this.peerConnection.addTrack(track, this.localStream);
         }
       });
+
+      const videoSender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'video');
+      if (videoSender) {
+        try {
+          const params = videoSender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) {
+            params.encodings = [{}];
+          }
+          params.encodings[0].maxBitrate = DEFAULT_VIDEO_BITRATE_FLOOR;
+          // @ts-ignore
+          params.degradationPreference = 'maintain-framerate';
+          videoSender.setParameters(params).catch((e) => console.warn('Could not set video parameters:', e));
+        } catch (e) {
+          console.warn('Error applying video sender parameters:', e);
+        }
+      }
     }
 
     // Handle remote tracks
@@ -171,6 +218,18 @@ export class WebRTCManager {
     }
   }
 
+  public async restartIce(): Promise<void> {
+    if (!this.peerConnection || !this.roomId) return;
+    try {
+      console.log('Attempting WebRTC ICE restart...');
+      const offer = await this.peerConnection.createOffer({ iceRestart: true });
+      await this.peerConnection.setLocalDescription(offer);
+      socketService.sendWebRTCOffer(this.roomId, offer);
+    } catch (err) {
+      console.error('Error during ICE restart:', err);
+    }
+  }
+
   public toggleVideo(enabled?: boolean): boolean {
     if (!this.localStream) return false;
     const videoTracks = this.localStream.getVideoTracks();
@@ -220,4 +279,5 @@ export class WebRTCManager {
 }
 
 export const webrtcManager = new WebRTCManager();
+
 
