@@ -320,10 +320,10 @@ export default function App() {
             
             {/* Responsive Video & Chat Layout */}
             {roomInfo.mode === 'video' ? (
-              <div className="flex-1 relative flex flex-col lg:grid lg:grid-cols-2 gap-4 min-h-[450px]">
+              <div className="flex-1 flex flex-col lg:grid lg:grid-cols-2 gap-3 sm:gap-4">
                 
-                {/* WebRTC Video Stream Container */}
-                <div className="flex-1 relative min-h-[360px] sm:min-h-[450px] rounded-3xl overflow-hidden">
+                {/* WebRTC Video Stream Container (Top on Mobile, Left on Desktop) */}
+                <div className="h-[32vh] sm:h-[40vh] lg:h-auto min-h-[240px] sm:min-h-[380px] relative rounded-3xl overflow-hidden shrink-0 lg:shrink">
                   <VideoContainer
                     localStream={localStream}
                     remoteStream={remoteStream}
@@ -334,23 +334,10 @@ export default function App() {
                     onToggleCamera={toggleCamera}
                     onToggleMic={toggleMic}
                   />
-
-                  {/* Floating Mobile Chat Toggle Button */}
-                  <button
-                    onClick={() => setIsMobileChatOpen((prev) => !prev)}
-                    className="lg:hidden absolute bottom-20 right-4 z-20 px-3.5 py-2 rounded-2xl bg-indigo-600/90 hover:bg-indigo-600 text-white font-bold text-xs shadow-xl backdrop-blur-md border border-indigo-400/30 flex items-center gap-2 active:scale-95 transition-all"
-                  >
-                    <MessageSquare className="w-4 h-4 text-white" />
-                    <span>{isMobileChatOpen ? 'Hide Chat' : `Chat (${messages.length})`}</span>
-                  </button>
                 </div>
 
-                {/* Floating Overlay on Mobile, Grid Column on Desktop */}
-                <div
-                  className={`${
-                    isMobileChatOpen ? 'flex' : 'hidden lg:flex'
-                  } lg:relative absolute bottom-16 left-2 right-2 max-h-[55vh] lg:max-h-none z-20 flex-col shadow-2xl transition-all duration-300`}
-                >
+                {/* Chat Message Box (Located Directly Below Video on Mobile, Right Column on Desktop) */}
+                <div className="flex-1 flex flex-col min-h-[220px]">
                   <ChatBox
                     messages={messages}
                     partnerProfile={roomInfo.partnerProfile}
@@ -358,8 +345,6 @@ export default function App() {
                     onSendMessage={sendMessage}
                     onTyping={notifyTyping}
                     onReportClick={() => setIsReportOpen(true)}
-                    isMobileOverlay={true}
-                    onCloseMobileOverlay={() => setIsMobileChatOpen(false)}
                   />
                 </div>
 
@@ -377,7 +362,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Bottom Control Action Bar (Always visible in Viewport) */}
+            {/* Bottom Control Action Bar */}
             <ControlBar
               status={status}
               mode={currentMode}

@@ -103,7 +103,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   };
 
   return (
-    <div className={`flex-1 flex flex-col h-full ${isMobileOverlay ? 'min-h-[280px] bg-slate-900/95 border-indigo-500/40 backdrop-blur-xl shadow-2xl' : 'min-h-[400px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl'} rounded-3xl border overflow-hidden relative`}>
+    <div className="flex-1 flex flex-col h-full min-h-[220px] sm:min-h-[350px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-3xl overflow-hidden relative">
       
       {/* Header Bar */}
       <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between">
