@@ -9,35 +9,30 @@ export const DEFAULT_VIDEO_BITRATE_FLOOR = 500000; // 500 kbps floor
  * (e.g., Oracle Cloud's Always Free VM instance), which provides unlimited relay bandwidth without maintenance fees.
  */
 const getIceServers = (): RTCConfiguration => {
-  const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME || '';
-  const turnCredential = (import.meta as any).env?.VITE_TURN_CREDENTIAL || (import.meta as any).env?.VITE_TURN_PASSWORD || '';
+  const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME || 'openrelayproject';
+  const turnCredential = (import.meta as any).env?.VITE_TURN_CREDENTIAL || (import.meta as any).env?.VITE_TURN_PASSWORD || 'openrelayproject';
   const turnUrl = (import.meta as any).env?.VITE_TURN_URL || '';
 
   const iceServers: RTCIceServer[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    {
+      urls: turnUrl || 'turn:openrelay.metered.ca:80',
+      username: turnUsername,
+      credential: turnCredential,
+    },
+    {
+      urls: turnUrl ? turnUrl.replace(':80', ':443') : 'turn:openrelay.metered.ca:443',
+      username: turnUsername,
+      credential: turnCredential,
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: turnUsername,
+      credential: turnCredential,
+    },
   ];
-
-  if (turnUsername && turnCredential) {
-    iceServers.push(
-      {
-        urls: turnUrl || 'turn:openrelay.metered.ca:80',
-        username: turnUsername,
-        credential: turnCredential,
-      },
-      {
-        urls: turnUrl ? turnUrl.replace(':80', ':443') : 'turn:openrelay.metered.ca:443',
-        username: turnUsername,
-        credential: turnCredential,
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: turnUsername,
-        credential: turnCredential,
-      }
-    );
-  }
 
   return { iceServers };
 };

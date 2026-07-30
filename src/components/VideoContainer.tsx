@@ -106,14 +106,14 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
       {/* Remote Video (Stranger) */}
       <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
         {videoFailed ? (
-          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-900/95 max-w-sm rounded-3xl border border-rose-500/30 shadow-2xl mx-4">
-            <div className="w-14 h-14 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-900/95 max-w-sm rounded-3xl border border-indigo-500/30 shadow-2xl mx-4 animate-fadeIn">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
               <VideoOff className="w-7 h-7" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-white font-bold text-base">Video Connection Failed</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Direct WebRTC stream could not connect. You can keep chatting by text or click Skip for a new stranger.
+              <h4 className="text-white font-bold text-base">Video Feed Unavailable</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Peer's camera or network didn't connect, but <strong className="text-indigo-400">Text Chat is active below!</strong> Say hello to {partnerProfile.nickname} or click Next Stranger for someone new.
               </p>
             </div>
           </div>
