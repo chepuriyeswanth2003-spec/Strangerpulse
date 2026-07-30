@@ -1,0 +1,11 @@
+{
+  "name": "Random Stranger Chat",
+  "description": "A modern real-time random stranger text, voice, and video chat platform featuring WebRTC peer connection, smart matchmaking filters, and local profile management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

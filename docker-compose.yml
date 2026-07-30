@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  stranger-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=stranger_chat_jwt_secret_key_2026
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+    restart: always
