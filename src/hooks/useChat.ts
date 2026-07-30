@@ -30,6 +30,7 @@ export function useChat() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const iceRestartAttemptedRef = useRef<boolean>(false);
   const recoveryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isEndingRef = useRef<boolean>(false);
 
   // Sync profile edits to local storage
   const updateProfile = useCallback((newProfile: UserProfile) => {
@@ -53,6 +54,7 @@ export function useChat() {
       setStatus('connected');
       setVideoFailed(false);
       iceRestartAttemptedRef.current = false;
+      isEndingRef.current = false;
       if (recoveryTimerRef.current) {
         clearTimeout(recoveryTimerRef.current);
         recoveryTimerRef.current = null;
@@ -115,7 +117,7 @@ export function useChat() {
         };
 
         webrtcManager.onConnectionTimeoutCallback = () => {
-          console.warn('WebRTC connection timed out (12s without stream). Marking video failed...');
+          console.warn('WebRTC connection timed out (25s without stream). Marking video failed...');
           setVideoFailed(true);
           setMessages((prev) => [
             ...prev,
@@ -141,18 +143,18 @@ export function useChat() {
     });
 
     const unsubDisconnected = socketService.subscribe('stranger_disconnected', () => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: 'sys_' + Date.now(),
-          sender: 'system',
-          text: 'Stranger has disconnected. Click Next Stranger to connect with a new person.',
-          timestamp: Date.now(),
-        },
-      ]);
       webrtcManager.cleanupPeerConnection();
       setRemoteStream(null);
       setVideoFailed(false);
+
+      if (isEndingRef.current) {
+        isEndingRef.current = false;
+        setRoomInfo(null);
+        setStatus('idle');
+      } else if (skipStrangerRef.current) {
+        console.log('Partner disconnected/skipped. Auto-searching next stranger...');
+        skipStrangerRef.current();
+      }
     });
 
     return () => {
@@ -293,6 +295,7 @@ export function useChat() {
 
   // End chat and stay idle
   const endChat = useCallback(() => {
+    isEndingRef.current = true;
     if (roomInfo) {
       socketService.skipStranger(roomInfo.roomId);
     }
