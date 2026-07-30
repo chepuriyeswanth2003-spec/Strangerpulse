@@ -3,4 +3,4 @@ Allow: /
 Disallow: /adminpanel
 Disallow: /api/admin/
 
-Sitemap: https://strangerpulse.app/sitemap.xml
+Sitemap: https://strangerpulse.onrender.com/sitemap.xml

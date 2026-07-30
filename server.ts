@@ -151,11 +151,15 @@ async function startServer() {
     pingTimeout: 25000,
   });
 
-  // SEO Endpoints
-  app.get('/ads.txt', (req, res) => {
-    res.type('text/plain');
-    res.send('google.com, pub-8087434803774295, DIRECT, f08c47fec0942fa0\n');
-  });
+  // SEO & Monetization Endpoints
+  const handleAdsTxt = (req: express.Request, res: express.Response) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.status(200).send('google.com, pub-8087434803774295, DIRECT, f08c47fec0942fa0\n');
+  };
+
+  app.get('/ads.txt', handleAdsTxt);
+  app.get('/ADS.TXT', handleAdsTxt);
 
   app.get('/robots.txt', (req, res) => {
     res.type('text/plain');
