@@ -146,15 +146,13 @@ export function useChat() {
         {
           id: 'sys_' + Date.now(),
           sender: 'system',
-          text: 'Stranger has disconnected.',
+          text: 'Stranger has disconnected. Click Next Stranger to connect with a new person.',
           timestamp: Date.now(),
         },
       ]);
       webrtcManager.cleanupPeerConnection();
       setRemoteStream(null);
-      setRoomInfo(null);
       setVideoFailed(false);
-      setStatus('idle');
     });
 
     return () => {
@@ -195,6 +193,13 @@ export function useChat() {
         mode: activeMode,
       };
 
+      if (profile.preferredFilters.mode !== activeMode) {
+        updateProfile({
+          ...profile,
+          preferredFilters: updatedFilters,
+        });
+      }
+
       // Prepare public profile (only send safe public attributes)
       const publicProfile: PublicProfile = {
         nickname: profile.displayName || 'Friendly Stranger',
@@ -221,7 +226,7 @@ export function useChat() {
       socketService.joinQueue(publicProfile, updatedFilters);
       return true;
     },
-    [profile]
+    [profile, updateProfile]
   );
 
   // Cancel queue / search
@@ -270,16 +275,17 @@ export function useChat() {
     [roomInfo]
   );
 
-  // Skip current stranger & immediately search next
+  // Skip current stranger & immediately search next in same mode
   const skipStranger = useCallback(() => {
+    const currentMode = roomInfo?.mode || profile.preferredFilters.mode || 'video';
     if (roomInfo) {
       socketService.skipStranger(roomInfo.roomId);
     }
     webrtcManager.cleanupPeerConnection();
     setRemoteStream(null);
     setVideoFailed(false);
-    startMatchmaking();
-  }, [roomInfo, startMatchmaking]);
+    startMatchmaking(currentMode);
+  }, [roomInfo, profile.preferredFilters.mode, startMatchmaking]);
 
   useEffect(() => {
     skipStrangerRef.current = skipStranger;
