@@ -13,6 +13,8 @@ import { ControlBar } from './components/ControlBar';
 import { ReportModal } from './components/ReportModal';
 import { StatsBanner } from './components/StatsBanner';
 import { AdminModal } from './components/AdminModal';
+import { Footer } from './components/Footer';
+import { PrivacyModal } from './components/PrivacyModal';
 import { AdBanner } from './components/AdBanner';
 
 import { ShieldCheck, User, Sparkles, Filter, Heart, MessageSquare, Video, Lock, Zap } from 'lucide-react';
@@ -50,6 +52,7 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(true);
 
   // Check for hidden /adminpanel route access
@@ -379,30 +382,8 @@ export default function App() {
 
       </main>
 
-      {/* Semantic Footer for SEO & Metadata */}
-      <footer className="w-full border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm py-6 px-4 mt-auto text-slate-500 dark:text-slate-400 text-xs">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200">
-            <span className="p-1 rounded-lg bg-indigo-600 text-white text-[10px] font-black">SP</span>
-            <span>StrangerPulse</span>
-            <span className="text-[10px] text-slate-400 font-normal">© {new Date().getFullYear()} All Rights Reserved</span>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px]">
-            <span className="hover:text-indigo-500 cursor-pointer">Random Video Chat</span>
-            <span>•</span>
-            <span className="hover:text-indigo-500 cursor-pointer">Anonymous Text Chat</span>
-            <span>•</span>
-            <span className="hover:text-indigo-500 cursor-pointer">Stranger Matching</span>
-            <span>•</span>
-            <span className="hover:text-indigo-500 cursor-pointer">Privacy & Terms</span>
-          </div>
-
-          <div className="text-[10px] text-slate-400">
-            Strictly 18+ Adult Community Standard
-          </div>
-        </div>
-      </footer>
+      {/* Semantic Footer Component with Privacy Policy & AdSense Disclosures */}
+      <Footer onOpenPrivacy={() => setIsPrivacyOpen(true)} />
 
       {/* MODALS */}
 
@@ -440,6 +421,12 @@ export default function App() {
       <AdminModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
+      />
+
+      {/* Google AdSense Compliant Privacy Policy & Cookie Opt-Out Modal */}
+      <PrivacyModal
+        isOpen={isPrivacyOpen}
+        onClose={() => setIsPrivacyOpen(false)}
       />
 
     </div>
