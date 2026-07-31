@@ -13,38 +13,19 @@ const getIceServers = (): RTCConfiguration => {
   const turnCredential = (import.meta as any).env?.VITE_TURN_CREDENTIAL || (import.meta as any).env?.VITE_TURN_PASSWORD || 'openrelayproject';
   const turnUrl = (import.meta as any).env?.VITE_TURN_URL || '';
 
-  const iceServers: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    {
-      urls: turnUrl || 'turn:openrelay.metered.ca:80',
-      username: turnUsername,
-      credential: turnCredential,
-    },
-    {
-      urls: turnUrl ? turnUrl.replace(':80', ':443') : 'turn:openrelay.metered.ca:443',
-      username: turnUsername,
-      credential: turnCredential,
-    },
-    {
-      urls: 'turns:openrelay.metered.ca:443',
-      username: turnUsername,
-      credential: turnCredential,
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: turnUsername,
-      credential: turnCredential,
-    },
-    {
-      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
-      username: turnUsername,
-      credential: turnCredential,
-    },
-  ];
-
-  return { iceServers };
+  return {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: turnUrl || ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'],
+        username: turnUsername,
+        credential: turnCredential,
+      },
+    ],
+    bundlePolicy: 'max-bundle',
+    iceCandidatePoolSize: 10,
+  };
 };
 
 export class WebRTCManager {
@@ -72,13 +53,13 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: video
           ? {
-              width: { min: 480, ideal: 1280 },
-              height: { min: 360, ideal: 720 },
-              frameRate: { ideal: 24, min: 15 },
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 },
+              frameRate: { ideal: 30, min: 15 },
               facingMode: 'user',
             }
           : false,
-        audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
+        audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
       });
 
       if (this.onLocalStreamCallback) {
@@ -112,15 +93,15 @@ export class WebRTCManager {
     this.peerConnection = new RTCPeerConnection(config);
     this.remoteStream = new MediaStream();
 
-    // Start 25-second connection timeout for slow mobile ICE candidate gathering
+    // Fast 10-second fallback connection timeout (connection establishes in 1-2 seconds)
     this.connectionTimeoutTimer = setTimeout(() => {
       if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
-        console.warn('WebRTC peer connection timed out after 25 seconds');
+        console.warn('WebRTC peer connection timed out after 10 seconds');
         if (this.onConnectionTimeoutCallback) {
           this.onConnectionTimeoutCallback();
         }
       }
-    }, 25000);
+    }, 10000);
 
     // Add local tracks & set bitrate floor + degradation preference
     if (this.localStream) {

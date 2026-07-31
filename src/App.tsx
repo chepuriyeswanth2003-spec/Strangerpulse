@@ -13,6 +13,7 @@ import { ControlBar } from './components/ControlBar';
 import { ReportModal } from './components/ReportModal';
 import { StatsBanner } from './components/StatsBanner';
 import { AdminModal } from './components/AdminModal';
+import { MobileChatLayout } from './components/MobileChatLayout';
 import { Footer } from './components/Footer';
 import { PrivacyModal } from './components/PrivacyModal';
 import { AdBanner } from './components/AdBanner';
@@ -321,12 +322,32 @@ export default function App() {
         {status === 'connected' && roomInfo && (
           <div className="flex-1 flex flex-col gap-3 min-h-[480px]">
             
-            {/* Responsive Video & Chat Layout */}
-            {roomInfo.mode === 'video' ? (
-              <div className="flex-1 flex flex-col lg:grid lg:grid-cols-2 gap-3 sm:gap-4">
-                
-                {/* WebRTC Video Stream Container (Top on Mobile, Left on Desktop) */}
-                <div className="h-[32vh] sm:h-[40vh] lg:h-auto min-h-[240px] sm:min-h-[380px] relative rounded-3xl overflow-hidden shrink-0 lg:shrink">
+            {/* Mobile Edge-to-Edge Experience Layout (< lg) */}
+            <div className="block lg:hidden w-full h-full">
+              <MobileChatLayout
+                mode={roomInfo.mode}
+                localStream={localStream}
+                remoteStream={remoteStream}
+                partnerProfile={roomInfo.partnerProfile}
+                messages={messages}
+                isPartnerTyping={isPartnerTyping}
+                isVideoEnabled={isVideoEnabled}
+                isAudioEnabled={isAudioEnabled}
+                videoFailed={videoFailed}
+                onSendMessage={sendMessage}
+                onTyping={notifyTyping}
+                onToggleCamera={toggleCamera}
+                onToggleMic={toggleMic}
+                onSkip={skipStranger}
+                onEnd={endChat}
+                onReportClick={() => setIsReportOpen(true)}
+              />
+            </div>
+
+            {/* Desktop Side-by-Side Experience Layout (lg:) */}
+            <div className="hidden lg:flex flex-col gap-4 flex-1">
+              <div className={`flex-1 grid gap-4 ${roomInfo.mode === 'video' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {roomInfo.mode === 'video' && (
                   <VideoContainer
                     localStream={localStream}
                     remoteStream={remoteStream}
@@ -337,23 +358,7 @@ export default function App() {
                     onToggleCamera={toggleCamera}
                     onToggleMic={toggleMic}
                   />
-                </div>
-
-                {/* Chat Message Box (Located Directly Below Video on Mobile, Right Column on Desktop) */}
-                <div className="flex-1 flex flex-col min-h-[220px]">
-                  <ChatBox
-                    messages={messages}
-                    partnerProfile={roomInfo.partnerProfile}
-                    isPartnerTyping={isPartnerTyping}
-                    onSendMessage={sendMessage}
-                    onTyping={notifyTyping}
-                    onReportClick={() => setIsReportOpen(true)}
-                  />
-                </div>
-
-              </div>
-            ) : (
-              <div className="flex-1 grid grid-cols-1 gap-4">
+                )}
                 <ChatBox
                   messages={messages}
                   partnerProfile={roomInfo.partnerProfile}
@@ -363,19 +368,18 @@ export default function App() {
                   onReportClick={() => setIsReportOpen(true)}
                 />
               </div>
-            )}
 
-            {/* Bottom Control Action Bar */}
-            <ControlBar
-              status={status}
-              mode={currentMode}
-              elapsedSeconds={elapsedSeconds}
-              onStartMatch={startMatchmaking}
-              onSkip={skipStranger}
-              onEnd={endChat}
-              onOpenReport={() => setIsReportOpen(true)}
-              onBlock={blockStranger}
-            />
+              <ControlBar
+                status={status}
+                mode={currentMode}
+                elapsedSeconds={elapsedSeconds}
+                onStartMatch={startMatchmaking}
+                onSkip={skipStranger}
+                onEnd={endChat}
+                onOpenReport={() => setIsReportOpen(true)}
+                onBlock={blockStranger}
+              />
+            </div>
 
           </div>
         )}
