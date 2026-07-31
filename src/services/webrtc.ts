@@ -1,6 +1,6 @@
 import { socketService } from './socket';
 
-export const DEFAULT_VIDEO_BITRATE_FLOOR = 500000; // 500 kbps floor
+export const DEFAULT_VIDEO_BITRATE_FLOOR = 3500000; // 3.5 Mbps High Definition floor
 
 /* 
  * Note: Metered Open Relay project (openrelay.metered.ca) provides free-tier TURN relay bandwidth (20 GB/mo free).
@@ -53,9 +53,9 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: video
           ? {
-              width: { ideal: 640, max: 1280 },
-              height: { ideal: 480, max: 720 },
-              frameRate: { ideal: 30, min: 15 },
+              width: { min: 1280, ideal: 1920 },
+              height: { min: 720, ideal: 1080 },
+              frameRate: { ideal: 30, min: 24 },
               facingMode: 'user',
             }
           : false,
@@ -68,17 +68,31 @@ export class WebRTCManager {
 
       return this.localStream;
     } catch (err) {
-      console.error('Error accessing media devices:', err);
-      // Fallback to audio-only if video fails (e.g. no camera attached)
-      if (video && audio) {
+      console.error('Error accessing high-def media devices:', err);
+      // Fallback to standard 720p/480p if 1080p camera not supported
+      if (video) {
         try {
-          this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+          this.localStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
+          });
           if (this.onLocalStreamCallback && this.localStream) {
             this.onLocalStreamCallback(this.localStream);
           }
           return this.localStream;
-        } catch (audioErr) {
-          console.error('Error accessing audio device:', audioErr);
+        } catch (subErr) {
+          // Fallback to audio-only if video fails
+          if (audio) {
+            try {
+              this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+              if (this.onLocalStreamCallback && this.localStream) {
+                this.onLocalStreamCallback(this.localStream);
+              }
+              return this.localStream;
+            } catch (audioErr) {
+              console.error('Error accessing audio device:', audioErr);
+            }
+          }
         }
       }
       return null;
@@ -103,7 +117,7 @@ export class WebRTCManager {
       }
     }, 10000);
 
-    // Add local tracks & set bitrate floor + degradation preference
+    // Add local tracks & set bitrate floor + maintain-resolution preference
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         if (this.peerConnection && this.localStream) {
@@ -118,9 +132,11 @@ export class WebRTCManager {
           if (!params.encodings || params.encodings.length === 0) {
             params.encodings = [{}];
           }
-          params.encodings[0].maxBitrate = DEFAULT_VIDEO_BITRATE_FLOOR;
+          params.encodings[0].maxBitrate = 4000000; // 4 Mbps Max
           // @ts-ignore
-          params.degradationPreference = 'maintain-framerate';
+          params.encodings[0].minBitrate = DEFAULT_VIDEO_BITRATE_FLOOR; // 3.5 Mbps Floor
+          // @ts-ignore
+          params.degradationPreference = 'maintain-resolution'; // Never drop or blur pixel resolution
           videoSender.setParameters(params).catch((e) => console.warn('Could not set video parameters:', e));
         } catch (e) {
           console.warn('Error applying video sender parameters:', e);
