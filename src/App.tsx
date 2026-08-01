@@ -103,9 +103,11 @@ export default function App() {
         {status === 'idle' && (
           <div className="flex-1 flex flex-col gap-6 animate-fadeIn">
             
-            {/* Hero Stats Banner */}
+            {/* Hero Stats & Side-by-Side Video / Text Chat Launcher */}
             <StatsBanner
               onlineCount={onlineCount}
+              onStartText={() => startMatchmaking('text')}
+              onStartVideo={() => startMatchmaking('video')}
             />
 
             {/* Top Monetization Leaderboard Ad Banner (Hides if unfilled) */}
