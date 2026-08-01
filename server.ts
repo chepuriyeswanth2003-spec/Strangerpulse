@@ -189,6 +189,54 @@ async function startServer() {
     });
   });
 
+  // Short-Lived TURN Credential Generation Endpoint (Coturn REST API convention + ExpressTurn fallback)
+  app.post('/api/turn-credentials', (req, res) => {
+    const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
+      req.socket.remoteAddress ||
+      '';
+    
+    if (isIpBanned(rawIp)) {
+      return res.status(403).json({ success: false, message: 'Banned IP' });
+    }
+
+    const TURN_STATIC_SECRET = process.env.TURN_STATIC_SECRET || '';
+    const TURN_HOST = process.env.TURN_HOST || '';
+    const EXPRESSTURN_USERNAME = process.env.EXPRESSTURN_USERNAME || '';
+    const EXPRESSTURN_CREDENTIAL = process.env.EXPRESSTURN_CREDENTIAL || '';
+    const EXPRESSTURN_URLS = process.env.EXPRESSTURN_URLS ? process.env.EXPRESSTURN_URLS.split(',').map((u) => u.trim()) : [];
+
+    let coturnData: { urls: string[]; username: string; credential: string } | null = null;
+
+    if (TURN_STATIC_SECRET && TURN_HOST) {
+      const ttl = 3600; // 1 hour TTL
+      const username = `${Math.floor(Date.now() / 1000) + ttl}:vibestream`;
+      const credential = crypto.createHmac('sha1', TURN_STATIC_SECRET).update(username).digest('base64');
+      coturnData = {
+        urls: [
+          `turn:${TURN_HOST}:3478`,
+          `turns:${TURN_HOST}:5349?transport=tcp`,
+        ],
+        username,
+        credential,
+      };
+    }
+
+    let expressTurnData: { urls: string[]; username: string; credential: string } | null = null;
+    if (EXPRESSTURN_URLS.length > 0 && EXPRESSTURN_USERNAME && EXPRESSTURN_CREDENTIAL) {
+      expressTurnData = {
+        urls: EXPRESSTURN_URLS,
+        username: EXPRESSTURN_USERNAME,
+        credential: EXPRESSTURN_CREDENTIAL,
+      };
+    }
+
+    res.json({
+      success: true,
+      coturn: coturnData,
+      expressTurn: expressTurnData,
+    });
+  });
+
   // Extended Admin Stats API & Password Auth
   const initialAdminPassword = process.env.ADMIN_PASSWORD || 'Admin';
   let adminPasswordHash = bcrypt.hashSync(initialAdminPassword, 10);
@@ -485,6 +533,7 @@ async function startServer() {
     });
 
     socket.on('webrtc_ice_candidate', (data: { roomId: string; candidate: any }) => {
+      if (!checkRateLimit(socket.id)) return;
       socket.to(data.roomId).emit('webrtc_ice_candidate', data.candidate);
     });
 

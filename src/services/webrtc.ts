@@ -1,8 +1,9 @@
 import { socketService } from './socket';
 
-export const DEFAULT_VIDEO_BITRATE_FLOOR = 2500000; // 2.5 Mbps High-Def target
+export const BITRATE_CEILING_BPS = 2000000; // 2.0 Mbps Ceiling
+export const BITRATE_FLOOR_BPS = 150000;   // 150 kbps Floor
 
-function setSDPBitrate(sdp: string, bitrateKbps: number = 2500): string {
+function setSDPBitrate(sdp: string, bitrateKbps: number = 2000): string {
   let lines = sdp.split('\r\n');
   let inVideo = false;
   let newLines: string[] = [];
@@ -26,29 +27,52 @@ function setSDPBitrate(sdp: string, bitrateKbps: number = 2500): string {
   return newLines.join('\r\n');
 }
 
-const getIceServers = (): RTCConfiguration => {
-  const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME || 'openrelayproject';
-  const turnCredential = (import.meta as any).env?.VITE_TURN_CREDENTIAL || (import.meta as any).env?.VITE_TURN_PASSWORD || 'openrelayproject';
-  const turnUrl = (import.meta as any).env?.VITE_TURN_URL || '';
+const fetchIceServers = async (): Promise<RTCConfiguration> => {
+  const stunServers: RTCIceServer[] = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+  ];
+
+  try {
+    const res = await fetch('/api/turn-credentials', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      const iceServers: RTCIceServer[] = [...stunServers];
+
+      // Primary uncapped Coturn TURN server entry
+      if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
+        iceServers.push({
+          urls: data.coturn.urls,
+          username: data.coturn.username,
+          credential: data.coturn.credential,
+        });
+      }
+
+      // Fallback ExpressTurn entry
+      if (data.expressTurn && data.expressTurn.urls && data.expressTurn.urls.length > 0) {
+        iceServers.push({
+          urls: data.expressTurn.urls,
+          username: data.expressTurn.username,
+          credential: data.expressTurn.credential,
+        });
+      }
+
+      return {
+        iceServers,
+        bundlePolicy: 'max-bundle',
+        iceCandidatePoolSize: 10,
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to fetch dynamic TURN credentials, using STUN servers:', err);
+  }
 
   return {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' },
-      {
-        urls: turnUrl || [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp'
-        ],
-        username: turnUsername,
-        credential: turnCredential,
-      },
-    ],
+    iceServers: stunServers,
     bundlePolicy: 'max-bundle',
     iceCandidatePoolSize: 10,
   };
@@ -61,6 +85,15 @@ export class WebRTCManager {
   private roomId: string = '';
   private connectionTimeoutTimer: NodeJS.Timeout | null = null;
   
+  // Adaptive Bitrate & Stats Tracking
+  private statsIntervalTimer: NodeJS.Timeout | null = null;
+  private currentMaxBitrate: number = BITRATE_CEILING_BPS;
+  private unhealthyPollCount: number = 0;
+  private healthyPollCount: number = 0;
+  private currentResolution: '720p' | '480p' = '720p';
+  private prevPacketsLost: number = 0;
+  private prevPacketsSent: number = 0;
+
   public onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
   public onLocalStreamCallback: ((stream: MediaStream) => void) | null = null;
   public onConnectionStateCallback: ((state: RTCPeerConnectionState) => void) | null = null;
@@ -127,9 +160,18 @@ export class WebRTCManager {
     this.roomId = roomId;
     this.cleanupPeerConnection();
 
-    const config = getIceServers();
+    // Fetch short-lived TURN credentials dynamically from server endpoint
+    const config = await fetchIceServers();
     this.peerConnection = new RTCPeerConnection(config);
     this.remoteStream = new MediaStream();
+
+    // Reset adaptive bitrate state
+    this.currentMaxBitrate = BITRATE_CEILING_BPS;
+    this.unhealthyPollCount = 0;
+    this.healthyPollCount = 0;
+    this.currentResolution = '720p';
+    this.prevPacketsLost = 0;
+    this.prevPacketsSent = 0;
 
     // 25-second fallback connection timeout for ICE candidate gathering
     this.connectionTimeoutTimer = setTimeout(() => {
@@ -167,7 +209,7 @@ export class WebRTCManager {
       }
     };
 
-    // Handle connection state changes & clear timeout
+    // Handle connection state changes & start adaptive stats polling loop
     this.peerConnection.onconnectionstatechange = () => {
       if (!this.peerConnection) return;
       const state = this.peerConnection.connectionState;
@@ -178,19 +220,25 @@ export class WebRTCManager {
           this.connectionTimeoutTimer = null;
         }
 
-        // Apply high-bandwidth sender parameters smoothly after connection
+        // Apply bitrate ceiling & balanced degradation preference
         const videoSender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'video');
         if (videoSender) {
           try {
             const params = videoSender.getParameters();
-            if (params && params.encodings && params.encodings.length > 0) {
-              params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps crisp 720p HD
-              videoSender.setParameters(params).catch(() => {});
+            if (!params.encodings || params.encodings.length === 0) {
+              params.encodings = [{}];
             }
+            params.encodings[0].maxBitrate = BITRATE_CEILING_BPS; // Ceiling, not floor
+            // @ts-ignore
+            params.degradationPreference = 'balanced';
+            videoSender.setParameters(params).catch(() => {});
           } catch (e) {
-            // Ignore bitrate errors
+            // Ignore param error
           }
         }
+
+        // Start 3-second Adaptive Bitrate & Resolution getStats polling loop
+        this.startAdaptiveStatsLoop();
       }
 
       if (this.onConnectionStateCallback) {
@@ -205,8 +253,8 @@ export class WebRTCManager {
         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const rawAnswer = await this.peerConnection.createAnswer();
         
-        // Inject high bandwidth allocation into SDP Answer (Forces 2.5 Mbps consumption)
-        const sdpWithBitrate = setSDPBitrate(rawAnswer.sdp || '', 2500);
+        // Inject SDP ceiling target
+        const sdpWithBitrate = setSDPBitrate(rawAnswer.sdp || '', 2000);
         const answer = new RTCSessionDescription({ type: rawAnswer.type, sdp: sdpWithBitrate });
 
         await this.peerConnection.setLocalDescription(answer);
@@ -239,8 +287,8 @@ export class WebRTCManager {
       try {
         const rawOffer = await this.peerConnection.createOffer();
         
-        // Inject high bandwidth allocation into SDP Offer (Forces 2.5 Mbps consumption)
-        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2500);
+        // Inject SDP ceiling target
+        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2000);
         const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
 
         await this.peerConnection.setLocalDescription(offer);
@@ -251,11 +299,136 @@ export class WebRTCManager {
     }
   }
 
+  // 3-second polling loop for Adaptive Bitrate & Resolution fallback
+  private startAdaptiveStatsLoop(): void {
+    if (this.statsIntervalTimer) {
+      clearInterval(this.statsIntervalTimer);
+    }
+
+    this.statsIntervalTimer = setInterval(async () => {
+      if (!this.peerConnection || this.peerConnection.connectionState !== 'connected') {
+        return;
+      }
+
+      try {
+        const stats = await this.peerConnection.getStats();
+        let packetsLost = 0;
+        let packetsSent = 0;
+        let rttMs = 0;
+
+        stats.forEach((report) => {
+          if (report.type === 'outbound-rtp' && report.kind === 'video') {
+            packetsSent = report.packetsSent || 0;
+          }
+          if (report.type === 'remote-inbound-rtp' && report.kind === 'video') {
+            packetsLost = report.packetsLost || 0;
+            if (report.roundTripTime) {
+              rttMs = report.roundTripTime * 1000;
+            }
+          }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            if (report.currentRoundTripTime && rttMs === 0) {
+              rttMs = report.currentRoundTripTime * 1000;
+            }
+          }
+        });
+
+        const deltaLost = Math.max(0, packetsLost - this.prevPacketsLost);
+        const deltaSent = Math.max(0, packetsSent - this.prevPacketsSent);
+        this.prevPacketsLost = packetsLost;
+        this.prevPacketsSent = packetsSent;
+
+        const totalPackets = deltaSent + deltaLost;
+        const lossRatio = totalPackets > 0 ? deltaLost / totalPackets : 0;
+
+        const isUnhealthy = lossRatio > 0.05 || rttMs > 300;
+
+        if (isUnhealthy) {
+          this.unhealthyPollCount++;
+          this.healthyPollCount = 0;
+
+          // Bad conditions for 2 consecutive polls (6s): step maxBitrate down by ~25%
+          if (this.unhealthyPollCount >= 2) {
+            const nextBitrate = Math.max(BITRATE_FLOOR_BPS, Math.floor(this.currentMaxBitrate * 0.75));
+            if (nextBitrate !== this.currentMaxBitrate) {
+              this.currentMaxBitrate = nextBitrate;
+              this.applyBitrateParameters(this.currentMaxBitrate);
+              console.log(`[WebRTC Adaptive] Poor connection detected (Loss: ${(lossRatio * 100).toFixed(1)}%, RTT: ${rttMs.toFixed(0)}ms). Stepped maxBitrate down to ${Math.round(this.currentMaxBitrate / 1000)} kbps`);
+            }
+
+            // Adaptive Resolution Fallback: Drop to 640x480 @ 20fps if at floor
+            if (this.currentMaxBitrate <= BITRATE_FLOOR_BPS && this.currentResolution === '720p') {
+              this.applyCameraConstraints(640, 480, 20);
+              this.currentResolution = '480p';
+              console.log('[WebRTC Adaptive] Quality severely degraded. Lowering local video track constraints to 640x480 @ 20fps');
+            }
+          }
+        } else {
+          this.healthyPollCount++;
+          this.unhealthyPollCount = 0;
+
+          // Healthy conditions for 15 seconds (5 consecutive polls): step maxBitrate back up toward ceiling
+          if (this.healthyPollCount >= 5) {
+            if (this.currentMaxBitrate < BITRATE_CEILING_BPS) {
+              const nextBitrate = Math.min(BITRATE_CEILING_BPS, Math.floor(this.currentMaxBitrate * 1.33));
+              if (nextBitrate !== this.currentMaxBitrate) {
+                this.currentMaxBitrate = nextBitrate;
+                this.applyBitrateParameters(this.currentMaxBitrate);
+                console.log(`[WebRTC Adaptive] Network conditions healthy. Stepped maxBitrate up to ${Math.round(this.currentMaxBitrate / 1000)} kbps`);
+              }
+            }
+
+            // Restore resolution to 1280x720 @ 30fps if bandwidth recovers
+            if (this.currentMaxBitrate > 500000 && this.currentResolution === '480p') {
+              this.applyCameraConstraints(1280, 720, 30);
+              this.currentResolution = '720p';
+              console.log('[WebRTC Adaptive] Network recovered. Restored local video track constraints to 1280x720 @ 30fps');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error polling WebRTC stats:', err);
+      }
+    }, 3000);
+  }
+
+  private applyBitrateParameters(targetMaxBitrate: number): void {
+    if (!this.peerConnection) return;
+    const videoSender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'video');
+    if (videoSender) {
+      try {
+        const params = videoSender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        params.encodings[0].maxBitrate = targetMaxBitrate;
+        // @ts-ignore
+        params.degradationPreference = 'balanced';
+        videoSender.setParameters(params).catch(() => {});
+      } catch (e) {
+        // Ignore setParameters error
+      }
+    }
+  }
+
+  private applyCameraConstraints(width: number, height: number, frameRate: number): void {
+    if (this.localStream) {
+      const videoTrack = this.localStream.getVideoTracks()[0];
+      if (videoTrack && typeof videoTrack.applyConstraints === 'function') {
+        videoTrack.applyConstraints({
+          width: { ideal: width },
+          height: { ideal: height },
+          frameRate: { ideal: frameRate },
+        }).catch((e) => console.warn('Could not apply camera constraints:', e));
+      }
+    }
+  }
+
   public async restartIce(): Promise<void> {
     if (this.peerConnection && this.roomId) {
       try {
         const rawOffer = await this.peerConnection.createOffer({ iceRestart: true });
-        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2500);
+        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2000);
         const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
         await this.peerConnection.setLocalDescription(offer);
         socketService.sendWebRTCOffer(this.roomId, offer);
@@ -297,6 +470,10 @@ export class WebRTCManager {
   }
 
   public cleanupPeerConnection(): void {
+    if (this.statsIntervalTimer) {
+      clearInterval(this.statsIntervalTimer);
+      this.statsIntervalTimer = null;
+    }
     if (this.connectionTimeoutTimer) {
       clearTimeout(this.connectionTimeoutTimer);
       this.connectionTimeoutTimer = null;
