@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { PublicProfile } from '../types';
-import { Camera, CameraOff, Mic, MicOff, Maximize, Globe, User, Heart, Sparkles, AlertTriangle, VideoOff } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff, Maximize, Globe, User, AlertTriangle, VideoOff } from 'lucide-react';
 import { webrtcManager } from '../services/webrtc';
 
 interface VideoContainerProps {
@@ -44,7 +44,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
     }
   }, [remoteStream]);
 
-  // Poll RTCPeerConnection stats every 2 seconds for packet loss or high jitter
+  // Poll RTCPeerConnection stats every 2 seconds
   useEffect(() => {
     let lastPacketsLost = 0;
     const interval = setInterval(async () => {
@@ -79,7 +79,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
           setIsWeakConnection(false);
         }
       } catch (err) {
-        // Ignore stats polling errors on some browsers
+        // Ignore stats polling errors
       }
     }, 2000);
 
@@ -100,20 +100,20 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full min-h-[320px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col justify-between group"
+      className="relative w-full h-full min-h-[320px] bg-black rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl flex flex-col justify-between group"
     >
       
       {/* Remote Video (Stranger) */}
-      <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black flex items-center justify-center">
         {videoFailed ? (
-          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-900/95 max-w-sm rounded-3xl border border-indigo-500/30 shadow-2xl mx-4 animate-fadeIn">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-zinc-950 max-w-sm rounded-3xl border border-zinc-800 shadow-2xl mx-4 animate-fadeIn">
+            <div className="w-14 h-14 rounded-2xl bg-zinc-900 text-zinc-300 flex items-center justify-center border border-zinc-800">
               <VideoOff className="w-7 h-7" />
             </div>
             <div className="space-y-1">
               <h4 className="text-white font-bold text-base">Video Feed Unavailable</h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Peer's camera or network didn't connect, but <strong className="text-indigo-400">Text Chat is active below!</strong> Say hello to {partnerProfile.nickname} or click Next Stranger for someone new.
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Peer's camera didn't connect, but <strong className="text-white">Text Chat is active below!</strong> Say hello to {partnerProfile.nickname} or click Next Stranger.
               </p>
             </div>
           </div>
@@ -126,53 +126,42 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
           />
         ) : (
           <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
-            <div className="w-20 h-20 rounded-full bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+            <div className="w-20 h-20 rounded-full bg-zinc-900 text-zinc-300 flex items-center justify-center border border-zinc-800">
               <User className="w-10 h-10 animate-pulse" />
             </div>
             <div>
               <p className="text-white font-bold text-base">{partnerProfile.nickname}</p>
-              <p className="text-xs text-slate-400">Connecting video feed...</p>
+              <p className="text-xs text-zinc-500">Connecting video feed...</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Top Overlay: Stranger Profile Info & Connection Quality Badge */}
-      <div className="relative z-10 p-4 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-transparent flex items-start justify-between">
+      <div className="relative z-10 p-4 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex items-start justify-between">
         <div className="flex flex-col gap-1.5 max-w-[70%]">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-zinc-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm">
+              <User className="w-3.5 h-3.5 text-zinc-400" />
               {partnerProfile.nickname}
             </span>
-            <span className="px-2.5 py-1 rounded-full bg-slate-800/80 text-slate-300 text-xs font-semibold flex items-center gap-1">
-              <Globe className="w-3 h-3 text-emerald-400" />
+            <span className="px-2.5 py-1 rounded-full bg-zinc-900/90 text-zinc-300 text-xs font-semibold flex items-center gap-1 border border-zinc-800">
+              <Globe className="w-3 h-3 text-zinc-400" />
               {partnerProfile.country}
             </span>
             {isWeakConnection && (
-              <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 backdrop-blur-md animate-pulse">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span className="px-2.5 py-1 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-700 text-xs font-semibold flex items-center gap-1.5 backdrop-blur-md animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5 text-zinc-400" />
                 Weak Connection
               </span>
             )}
-          </div>
-
-          <div className="flex flex-wrap gap-1">
-            {partnerProfile.interests?.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-200 border border-purple-500/30 text-[10px] font-medium flex items-center gap-1"
-              >
-                <Heart className="w-2.5 h-2.5" /> #{tag}
-              </span>
-            ))}
           </div>
         </div>
 
         <button
           onClick={toggleFullscreen}
           id="fullscreen-video-btn"
-          className="p-2 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 text-white backdrop-blur-md transition-all"
+          className="p-2 rounded-xl bg-black/60 hover:bg-zinc-900 text-white backdrop-blur-md border border-zinc-800 transition-all"
           title="Toggle Fullscreen"
         >
           <Maximize className="w-4 h-4" />
@@ -180,7 +169,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
       </div>
 
       {/* Bottom Floating Controls & PIP Local Self-Video */}
-      <div className="relative z-10 p-4 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent flex items-end justify-between">
+      <div className="relative z-10 p-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end justify-between">
         
         {/* Media Toggle Buttons */}
         <div className="flex items-center gap-2">
@@ -189,11 +178,11 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
             id="toggle-camera-btn"
             className={`p-3 rounded-2xl backdrop-blur-md border font-semibold text-xs transition-all flex items-center gap-2 ${
               isVideoEnabled
-                ? 'bg-slate-800/80 border-slate-700 text-white hover:bg-slate-700'
-                : 'bg-rose-600/90 border-rose-500 text-white hover:bg-rose-600'
+                ? 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800'
+                : 'bg-white border-white text-black hover:bg-zinc-200'
             }`}
           >
-            {isVideoEnabled ? <Camera className="w-4 h-4 text-emerald-400" /> : <CameraOff className="w-4 h-4 text-white" />}
+            {isVideoEnabled ? <Camera className="w-4 h-4 text-zinc-300" /> : <CameraOff className="w-4 h-4 text-black" />}
           </button>
 
           <button
@@ -201,16 +190,16 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
             id="toggle-mic-btn"
             className={`p-3 rounded-2xl backdrop-blur-md border font-semibold text-xs transition-all flex items-center gap-2 ${
               isAudioEnabled
-                ? 'bg-slate-800/80 border-slate-700 text-white hover:bg-slate-700'
-                : 'bg-rose-600/90 border-rose-500 text-white hover:bg-rose-600'
+                ? 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800'
+                : 'bg-white border-white text-black hover:bg-zinc-200'
             }`}
           >
-            {isAudioEnabled ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4 text-white" />}
+            {isAudioEnabled ? <Mic className="w-4 h-4 text-zinc-300" /> : <MicOff className="w-4 h-4 text-black" />}
           </button>
         </div>
 
         {/* Local PIP Video */}
-        <div className="w-28 sm:w-36 aspect-video bg-slate-900 rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-xl relative group-hover:scale-105 transition-transform">
+        <div className="w-28 sm:w-36 aspect-video bg-zinc-950 rounded-2xl overflow-hidden border-2 border-zinc-700 shadow-2xl relative group-hover:scale-105 transition-transform">
           {localStream && localStream.getVideoTracks().length > 0 ? (
             <video
               ref={localVideoRef}
@@ -220,11 +209,11 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
               className="w-full h-full object-cover transform -scale-x-100"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400 text-[10px]">
+            <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-zinc-500 text-[10px]">
               You (Off)
             </div>
           )}
-          <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-bold text-white">
+          <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[9px] font-bold text-white border border-zinc-800">
             You
           </span>
         </div>
@@ -234,4 +223,3 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
     </div>
   );
 };
-

@@ -1,35 +1,17 @@
 import React, { useState } from 'react';
-import { UserProfile, Gender, MatchFilters } from '../types';
-import { X, User, Globe, Languages as LangIcon, Heart, Filter, ShieldCheck, Check } from 'lucide-react';
+import { UserProfile, MatchFilters } from '../types';
+import { X, User, Filter, Globe, Sparkles, Check } from 'lucide-react';
 
 interface ProfileModalProps {
   isOpen: boolean;
   profile: UserProfile;
-  onSave: (updated: UserProfile) => void;
+  onSave: (updates: Partial<UserProfile>) => void;
   onClose: () => void;
 }
 
-const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'non-binary', label: 'Non-binary' },
-  { value: 'prefer-not-to-say', label: 'Prefer not to say' },
-];
-
-const POPULAR_COUNTRIES = [
-  'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany',
-  'France', 'India', 'Japan', 'Brazil', 'Spain', 'Italy', 'Mexico',
-  'South Korea', 'Netherlands', 'Singapore', 'Sweden', 'Philippines'
-];
-
-const POPULAR_LANGUAGES = [
-  'English', 'Spanish', 'French', 'German', 'Hindi',
-  'Japanese', 'Korean', 'Mandarin', 'Portuguese', 'Russian', 'Italian'
-];
-
-const PRESET_INTERESTS = [
-  'Gaming', 'Music', 'Movies', 'Anime', 'Coding', 'Art',
-  'Fitness', 'Travel', 'Crypto', 'Books', 'Food', 'Photography', 'Technology'
+const POPULAR_INTERESTS = [
+  'gaming', 'music', 'movies', 'anime', 'coding', 'crypto', 'travel',
+  'fitness', 'art', 'books', 'tech', 'fashion', 'foodie', 'sports'
 ];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -38,403 +20,189 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onSave,
   onClose,
 }) => {
-  const [displayName, setDisplayName] = useState(profile.displayName || 'Friendly Stranger');
-  const [gender, setGender] = useState<Gender>(profile.gender || 'prefer-not-to-say');
-  const [country, setCountry] = useState(profile.country || 'United States');
-  const [stateRegion, setStateRegion] = useState(profile.stateRegion || '');
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(profile.languages || ['English']);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(profile.interests || ['Gaming', 'Music']);
-  const [customInterest, setCustomInterest] = useState('');
-
-  // Matching filters
-  const [filters, setFilters] = useState<MatchFilters>(profile.preferredFilters || {
-    gender: 'any',
-    country: 'any',
-    language: 'any',
-    commonInterests: false,
-    globalSearch: true,
-    mode: 'text',
-  });
-
-  const [activeTab, setActiveTab] = useState<'profile' | 'filters'>('profile');
-
   if (!isOpen) return null;
 
-  const toggleLanguage = (lang: string) => {
-    if (selectedLangs.includes(lang)) {
-      if (selectedLangs.length > 1) {
-        setSelectedLangs(selectedLangs.filter((l) => l !== lang));
-      }
-    } else {
-      setSelectedLangs([...selectedLangs, lang]);
-    }
-  };
+  const [displayName, setDisplayName] = useState(profile.displayName);
+  const [gender, setGender] = useState(profile.gender);
+  const [country, setCountry] = useState(profile.country);
+  const [interests, setInterests] = useState<string[]>(profile.interests || []);
+  const [newTagInput, setNewTagInput] = useState('');
+  
+  const [filters, setFilters] = useState<MatchFilters>(profile.preferredFilters);
 
-  const toggleInterest = (interest: string) => {
-    if (selectedInterests.includes(interest)) {
-      setSelectedInterests(selectedInterests.filter((i) => i !== interest));
+  const handleToggleTag = (tag: string) => {
+    if (interests.includes(tag)) {
+      setInterests(interests.filter((t) => t !== tag));
     } else {
-      if (selectedInterests.length < 10) {
-        setSelectedInterests([...selectedInterests, interest]);
+      if (interests.length < 8) {
+        setInterests([...interests, tag]);
       }
     }
   };
 
-  const addCustomInterest = (e: React.FormEvent) => {
+  const handleAddCustomTag = (e: React.FormEvent) => {
     e.preventDefault();
-    const tag = customInterest.trim();
-    if (tag && !selectedInterests.includes(tag) && selectedInterests.length < 10) {
-      setSelectedInterests([...selectedInterests, tag]);
-      setCustomInterest('');
+    const clean = newTagInput.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (clean && !interests.includes(clean) && interests.length < 8) {
+      setInterests([...interests, clean]);
+      setNewTagInput('');
     }
   };
 
-  const handleSave = () => {
-    const updated: UserProfile = {
-      ...profile,
-      displayName: displayName.trim() || 'Friendly Stranger',
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      displayName: displayName.trim() || 'Anonymous',
       gender,
       country,
-      stateRegion,
-      languages: selectedLangs,
-      interests: selectedInterests,
+      interests,
       preferredFilters: filters,
-    };
-    onSave(updated);
+    });
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fadeIn">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto relative">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-zinc-900 text-white flex items-center justify-center font-bold border border-zinc-800">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                Your Profile & Match Preferences
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Stored locally in browser. Only public tags shared with strangers.
-              </p>
+              <h3 className="text-lg font-bold text-white">Profile &amp; Match Settings</h3>
+              <p className="text-xs text-zinc-400">Customize your stranger chat preferences</p>
             </div>
           </div>
+
           <button
             onClick={onClose}
-            id="close-profile-modal-btn"
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pt-2">
-          <button
-            onClick={() => setActiveTab('profile')}
-            id="profile-tab-btn"
-            className={`pb-3 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'profile'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            Public Profile
-          </button>
-          <button
-            onClick={() => setActiveTab('filters')}
-            id="filters-tab-btn"
-            className={`pb-3 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'filters'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            Matchmaking Filters
-          </button>
-        </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          
+          {/* Section 1: Local Profile Info */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <User className="w-4 h-4 text-zinc-400" />
+              1. Personal Profile
+            </h4>
 
-        {/* Body Content */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {activeTab === 'profile' ? (
-            <>
-              {/* Display Name */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Display Nickname (Visible to Strangers)
-                </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Display Name</label>
                 <input
                   type="text"
-                  maxLength={30}
+                  maxLength={20}
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  id="display-name-input"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 text-sm outline-none"
-                  placeholder="e.g. Alex, CyberGamer, FriendlyStranger"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-zinc-800 text-white text-xs font-semibold outline-none focus:ring-2 focus:ring-zinc-400"
                 />
               </div>
 
-              {/* Gender & Country */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Gender
-                  </label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value as Gender)}
-                    id="gender-select"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 text-sm outline-none"
-                  >
-                    {GENDER_OPTIONS.map((g) => (
-                      <option key={g.value} value={g.value}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1">
-                    <Globe className="w-3.5 h-3.5 text-indigo-500" /> Country
-                  </label>
-                  <select
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    id="country-select"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 text-sm outline-none"
-                  >
-                    {POPULAR_COUNTRIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Your Gender</label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-zinc-800 text-white text-xs font-semibold outline-none focus:ring-2 focus:ring-zinc-400"
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="everyone">Non-Binary / Secret</option>
+                </select>
               </div>
-
-              {/* State/Region (Optional) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  State / Region (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={stateRegion}
-                  onChange={(e) => setStateRegion(e.target.value)}
-                  id="state-region-input"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 text-sm outline-none"
-                  placeholder="e.g. California, Bavaria, Tokyo"
-                />
-              </div>
-
-              {/* Languages */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
-                  <LangIcon className="w-3.5 h-3.5 text-indigo-500" /> Spoken Languages
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {POPULAR_LANGUAGES.map((lang) => {
-                    const isSelected = selectedLangs.includes(lang);
-                    return (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => toggleLanguage(lang)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                          isSelected
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {lang} {isSelected && '✓'}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Interests */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5 text-pink-500" /> Topics & Interests ({selectedInterests.length}/10)
-                </label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {PRESET_INTERESTS.map((interest) => {
-                    const isSelected = selectedInterests.includes(interest);
-                    return (
-                      <button
-                        key={interest}
-                        type="button"
-                        onClick={() => toggleInterest(interest)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                          isSelected
-                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        #{interest}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <form onSubmit={addCustomInterest} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customInterest}
-                    onChange={(e) => setCustomInterest(e.target.value)}
-                    id="custom-interest-input"
-                    className="flex-1 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Add custom interest..."
-                  />
-                  <button
-                    type="submit"
-                    id="add-interest-btn"
-                    className="px-4 py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white text-xs font-semibold transition-colors"
-                  >
-                    Add
-                  </button>
-                </form>
-              </div>
-            </>
-          ) : (
-            /* Filters Tab */
-            <div className="space-y-6">
-              
-              {/* Gender Preference */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Preferred Partner Gender
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {[
-                    { id: 'any', label: 'Any Gender' },
-                    { id: 'male', label: 'Male Only' },
-                    { id: 'female', label: 'Female Only' },
-                    { id: 'non-binary', label: 'Non-binary' },
-                    { id: 'prefer-not-to-say', label: 'Prefer not to say' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setFilters({ ...filters, gender: opt.id as any })}
-                      className={`p-3 rounded-xl border text-xs font-semibold transition-all ${
-                        filters.gender === opt.id
-                          ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400'
-                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Country Preference */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Location Preference
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFilters({ ...filters, country: 'any' })}
-                    className={`p-3 rounded-xl border text-xs font-semibold text-left ${
-                      filters.country === 'any'
-                        ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400'
-                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    🌐 Global (Any Country)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilters({ ...filters, country: 'same' })}
-                    className={`p-3 rounded-xl border text-xs font-semibold text-left ${
-                      filters.country === 'same'
-                        ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400'
-                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    📍 Same Country ({country})
-                  </button>
-                </div>
-              </div>
-
-              {/* Common Interests Toggle */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                      Prioritize Common Interests
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      Match with strangers sharing at least 1 interest tag.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={filters.commonInterests}
-                    onChange={(e) => setFilters({ ...filters, commonInterests: e.target.checked })}
-                    id="common-interests-checkbox"
-                    className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                      Global Fallback Search
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      If strict filters timeout, auto-connect to any available stranger.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={filters.globalSearch}
-                    onChange={(e) => setFilters({ ...filters, globalSearch: e.target.checked })}
-                    id="global-search-checkbox"
-                    className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                  />
-                </label>
-              </div>
-
             </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-            <ShieldCheck className="w-4 h-4" />
-            <span>Age Verified (18+)</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Section 2: Interest Tags */}
+          <div className="space-y-3 pt-4 border-t border-zinc-800">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-zinc-400" />
+              2. Shared Interests (Max 8)
+            </h4>
+
+            <div className="flex flex-wrap gap-1.5">
+              {POPULAR_INTERESTS.map((tag) => {
+                const active = interests.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => handleToggleTag(tag)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      active
+                        ? 'bg-white text-black border-white shadow-sm'
+                        : 'bg-black text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
+                    }`}
+                  >
+                    #{tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 3: Matchmaking Preferences */}
+          <div className="space-y-4 pt-4 border-t border-zinc-800">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Filter className="w-4 h-4 text-zinc-400" />
+              3. Stranger Matching Filters
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Target Stranger Gender</label>
+                <select
+                  value={filters.gender}
+                  onChange={(e) => setFilters({ ...filters, gender: e.target.value as any })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-zinc-800 text-white text-xs font-semibold outline-none focus:ring-2 focus:ring-zinc-400"
+                >
+                  <option value="everyone">Everyone (Fastest Match)</option>
+                  <option value="female">Female Only</option>
+                  <option value="male">Male Only</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Default Mode</label>
+                <select
+                  value={filters.mode}
+                  onChange={(e) => setFilters({ ...filters, mode: e.target.value as any })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-zinc-800 text-white text-xs font-semibold outline-none focus:ring-2 focus:ring-zinc-400"
+                >
+                  <option value="video">Video Chat</option>
+                  <option value="text">Text Chat</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Save Actions */}
+          <div className="pt-4 border-t border-zinc-800 flex items-center justify-end gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold transition-all border border-zinc-800"
             >
               Cancel
             </button>
             <button
-              onClick={handleSave}
-              id="save-profile-btn"
-              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5"
+              type="submit"
+              className="px-6 py-2.5 rounded-xl bg-white text-black text-xs font-extrabold hover:bg-zinc-200 transition-all shadow-md flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              Save Changes
+              Save Preferences
             </button>
           </div>
-        </div>
+
+        </form>
 
       </div>
     </div>

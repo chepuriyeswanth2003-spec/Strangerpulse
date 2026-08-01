@@ -4,21 +4,16 @@ import {
   Mic,
   MicOff,
   Camera,
-  CameraOff,
   Send,
   Smile,
   SkipForward,
   XCircle,
   ShieldAlert,
-  Heart,
   Globe,
-  Sparkles,
-  RefreshCw,
   VideoOff,
   User,
   RotateCcw,
 } from 'lucide-react';
-import { webrtcManager } from '../services/webrtc';
 
 interface MobileChatLayoutProps {
   mode: 'text' | 'video';
@@ -39,7 +34,7 @@ interface MobileChatLayoutProps {
   onReportClick: () => void;
 }
 
-const QUICK_REACTIONS = ['Hi!', 'How are you?', 'Thanks!', '😂', '👍', '❤️', '👏', '🔥'];
+const QUICK_REACTIONS = ['Hi!', 'How are you?', 'Thanks!', '👍', '🔥', '👀', '✨'];
 
 export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
   mode,
@@ -99,19 +94,19 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[calc(100vh-80px)] max-h-[850px] bg-slate-950 rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between select-none">
+    <div className="relative w-full h-[calc(100vh-80px)] max-h-[850px] bg-black rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between select-none border border-zinc-800">
       
-      {/* 1. BACKGROUND CANVAS (Video Stream or Soft Pastel Audio Gradient) */}
-      <div className="absolute inset-0 z-0 bg-slate-950">
+      {/* 1. BACKGROUND CANVAS */}
+      <div className="absolute inset-0 z-0 bg-black">
         {mode === 'video' ? (
           videoFailed ? (
-            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950">
-              <div className="w-16 h-16 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-zinc-950">
+              <div className="w-16 h-16 rounded-full bg-zinc-900 text-zinc-300 flex items-center justify-center border border-zinc-800">
                 <VideoOff className="w-8 h-8" />
               </div>
               <div className="space-y-1">
                 <h4 className="text-white font-bold text-base">Video Stream Failed</h4>
-                <p className="text-xs text-slate-300 max-w-xs leading-relaxed">
+                <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
                   Peer camera didn't connect, but text & audio chat are active below!
                 </p>
               </div>
@@ -124,24 +119,24 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-purple-950 to-slate-950">
-              <div className="w-20 h-20 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 animate-pulse mb-3">
+            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-950">
+              <div className="w-20 h-20 rounded-full bg-zinc-900 text-zinc-300 flex items-center justify-center border border-zinc-800 animate-pulse mb-3">
                 <User className="w-10 h-10" />
               </div>
               <p className="text-white font-bold text-base">{partnerProfile.nickname}</p>
-              <p className="text-xs text-slate-400">Connecting video feed...</p>
+              <p className="text-xs text-zinc-500">Connecting video feed...</p>
             </div>
           )
         ) : (
-          /* Soft Audio Chat Pastel Radial Gradient */
-          <div className="w-full h-full bg-gradient-to-br from-indigo-900/60 via-purple-900/50 to-pink-900/60 backdrop-blur-3xl flex flex-col items-center justify-center relative">
-            <div className="w-28 h-28 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center shadow-2xl animate-pulse relative">
-              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
-                <Mic className="w-9 h-9 text-white" />
+          /* Black & White Audio Chat Radial Background */
+          <div className="w-full h-full bg-gradient-to-b from-zinc-900 via-black to-zinc-950 flex flex-col items-center justify-center relative">
+            <div className="w-28 h-28 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center shadow-2xl animate-pulse relative">
+              <div className="w-20 h-20 rounded-full bg-white text-black flex items-center justify-center">
+                <Mic className="w-9 h-9" />
               </div>
             </div>
             <div className="mt-4 text-center">
-              <span className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-white font-bold text-xs">
+              <span className="px-3.5 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-white font-bold text-xs">
                 {partnerProfile.nickname} ({partnerProfile.country})
               </span>
             </div>
@@ -150,36 +145,36 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
       </div>
 
       {/* 2. TOP FLOATING ACTIONS & PIP LOCAL CAMERA */}
-      <div className="relative z-10 p-4 flex items-start justify-between bg-gradient-to-b from-slate-950/80 via-slate-950/30 to-transparent">
+      <div className="relative z-10 p-4 flex items-start justify-between bg-gradient-to-b from-black/90 via-black/40 to-transparent">
         
-        {/* Left Side: Vertical Action Pills (Disconnect, Report, Favorite) */}
+        {/* Left Side: Vertical Action Pills */}
         <div className="flex flex-col gap-2.5">
           <button
             onClick={onEnd}
-            className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white flex items-center justify-center shadow-lg transition-transform active:scale-90"
+            className="w-9 h-9 rounded-full bg-zinc-900/90 border border-zinc-800 text-white flex items-center justify-center shadow-lg transition-transform active:scale-90"
             title="End Chat"
           >
-            <XCircle className="w-5 h-5 text-rose-300" />
+            <XCircle className="w-5 h-5 text-zinc-400" />
           </button>
 
           <button
             onClick={onReportClick}
-            className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white flex items-center justify-center shadow-lg transition-transform active:scale-90"
+            className="w-9 h-9 rounded-full bg-zinc-900/90 border border-zinc-800 text-white flex items-center justify-center shadow-lg transition-transform active:scale-90"
             title="Report Stranger"
           >
-            <ShieldAlert className="w-5 h-5 text-amber-300" />
+            <ShieldAlert className="w-5 h-5 text-zinc-400" />
           </button>
 
-          <div className="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white font-bold text-[10px] flex items-center gap-1">
-            <Globe className="w-3 h-3 text-emerald-400" />
+          <div className="px-2.5 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 text-white font-bold text-[10px] flex items-center gap-1">
+            <Globe className="w-3 h-3 text-zinc-400" />
             {partnerProfile.country}
           </div>
         </div>
 
-        {/* Right Side: PIP Local Self-Video Circle (Top-Right) */}
+        {/* Right Side: PIP Local Self-Video Circle */}
         {mode === 'video' && (
           <div className="relative flex flex-col items-end">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-white/80 shadow-2xl bg-slate-900 relative">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-zinc-700 shadow-2xl bg-zinc-900 relative">
               {localStream && localStream.getVideoTracks().length > 0 ? (
                 <video
                   ref={localVideoRef}
@@ -189,7 +184,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
                   className="w-full h-full object-cover transform -scale-x-100"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[10px] text-white/60">
+                <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-500">
                   Off
                 </div>
               )}
@@ -198,7 +193,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
             {/* Camera Flip Button */}
             <button
               onClick={onToggleCamera}
-              className="mt-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md border border-white/30 active:scale-90"
+              className="mt-1 w-7 h-7 rounded-full bg-black/80 text-white flex items-center justify-center backdrop-blur-md border border-zinc-800 active:scale-90"
               title="Toggle Camera"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -208,7 +203,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
 
       </div>
 
-      {/* 3. FLOATING SPEECH BUBBLE OVERLAY STREAM (TikTok / Instagram Live Style) */}
+      {/* 3. FLOATING SPEECH BUBBLES */}
       <div
         ref={chatContainerRef}
         className="relative z-10 flex-1 px-4 py-2 overflow-y-auto space-y-2 flex flex-col justify-end pointer-events-auto"
@@ -218,7 +213,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
             return (
               <div
                 key={msg.id}
-                className="self-center px-3 py-1 rounded-full bg-slate-950/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-semibold text-center shadow-md my-1"
+                className="self-center px-3 py-1 rounded-full bg-black/80 border border-zinc-800 text-zinc-300 text-[11px] font-semibold text-center shadow-md my-1"
               >
                 {msg.text}
               </div>
@@ -234,8 +229,8 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
               <div
                 className={`max-w-[78%] px-3.5 py-2 rounded-2xl text-xs font-semibold shadow-xl backdrop-blur-md leading-relaxed ${
                   isSelf
-                    ? 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white rounded-br-none'
-                    : 'bg-white/95 text-slate-900 rounded-bl-none border border-white/40'
+                    ? 'bg-white text-black rounded-br-none'
+                    : 'bg-zinc-900/95 text-white rounded-bl-none border border-zinc-800'
                 }`}
               >
                 {msg.text}
@@ -245,22 +240,22 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
         })}
 
         {isPartnerTyping && (
-          <div className="self-start px-3 py-1.5 rounded-2xl bg-white/90 text-slate-900 text-xs italic font-medium flex items-center gap-1.5 shadow-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-bounce"></span>
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-bounce [animation-delay:0.2s]"></span>
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-bounce [animation-delay:0.4s]"></span>
+          <div className="self-start px-3 py-1.5 rounded-2xl bg-zinc-900 text-white text-xs italic font-medium flex items-center gap-1.5 border border-zinc-800 shadow-md">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-bounce"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-bounce [animation-delay:0.2s]"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-bounce [animation-delay:0.4s]"></span>
             <span>Typing...</span>
           </div>
         )}
       </div>
 
-      {/* 4. QUICK REACTION PILLS BAR (Directly above input bar) */}
-      <div className="relative z-10 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-slate-950/40 backdrop-blur-md border-t border-white/10">
+      {/* 4. QUICK REACTION PILLS BAR */}
+      <div className="relative z-10 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-black/60 backdrop-blur-md border-t border-zinc-900">
         {QUICK_REACTIONS.map((item) => (
           <button
             key={item}
             onClick={() => handleQuickReaction(item)}
-            className="px-3 py-1 rounded-full text-xs font-bold bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/20 shadow-md shrink-0 active:scale-95 transition-transform"
+            className="px-3 py-1 rounded-full text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 shadow-md shrink-0 active:scale-95 transition-transform"
           >
             {item}
           </button>
@@ -268,13 +263,13 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
       </div>
 
       {/* 5. BOTTOM FLOATING INPUT & CONTROL BAR */}
-      <div className="relative z-10 p-3 bg-slate-950/90 backdrop-blur-xl border-t border-white/10 flex items-center gap-2">
+      <div className="relative z-10 p-3 bg-black/90 backdrop-blur-xl border-t border-zinc-800 flex items-center gap-2">
         
         {/* Emoji Button */}
         <button
           type="button"
           onClick={() => setShowEmojis((prev) => !prev)}
-          className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md transition-colors shrink-0"
+          className="p-2.5 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-800 transition-colors shrink-0"
         >
           <Smile className="w-5 h-5" />
         </button>
@@ -294,13 +289,13 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
               }
             }}
             placeholder="Type message here..."
-            className="w-full px-4 py-2.5 rounded-full bg-white/10 text-white placeholder-white/50 text-xs border border-white/20 outline-none focus:ring-2 focus:ring-indigo-400 backdrop-blur-md"
+            className="w-full px-4 py-2.5 rounded-full bg-zinc-900 text-white placeholder-zinc-500 text-xs border border-zinc-800 outline-none focus:ring-2 focus:ring-zinc-400"
           />
 
           <button
             type="submit"
             disabled={!inputText.trim()}
-            className="p-2.5 rounded-full bg-indigo-600 disabled:opacity-40 text-white shadow-lg shrink-0 active:scale-90 transition-transform"
+            className="p-2.5 rounded-full bg-white disabled:opacity-30 text-black shadow-lg shrink-0 active:scale-90 transition-transform"
           >
             <Send className="w-4 h-4" />
           </button>
@@ -309,8 +304,8 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
         {/* Mic Toggle Button */}
         <button
           onClick={onToggleMic}
-          className={`p-2.5 rounded-full backdrop-blur-md shadow-lg shrink-0 transition-transform active:scale-90 ${
-            isAudioEnabled ? 'bg-white/20 text-emerald-300' : 'bg-rose-600 text-white'
+          className={`p-2.5 rounded-full border shrink-0 transition-transform active:scale-90 ${
+            isAudioEnabled ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-white text-black'
           }`}
           title="Toggle Mic"
         >
@@ -320,7 +315,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
         {/* Next Stranger (Skip) Button */}
         <button
           onClick={onSkip}
-          className="px-3.5 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xs shadow-xl shrink-0 flex items-center gap-1 active:scale-90 transition-transform"
+          className="px-3.5 py-2.5 rounded-full bg-white hover:bg-zinc-200 text-black font-extrabold text-xs shadow-xl shrink-0 flex items-center gap-1 active:scale-90 transition-transform"
           title="Next Stranger"
         >
           <SkipForward className="w-4 h-4" />

@@ -18,7 +18,7 @@ import { Footer } from './components/Footer';
 import { PrivacyModal } from './components/PrivacyModal';
 import { AdBanner } from './components/AdBanner';
 
-import { ShieldCheck, User, Sparkles, Filter, Heart, MessageSquare, Video, Lock, Zap } from 'lucide-react';
+import { ShieldCheck, User, Filter, Lock, Zap, MessageSquare } from 'lucide-react';
 
 export default function App() {
   const { theme, toggleTheme } = useTheme('dark');
@@ -54,58 +54,38 @@ export default function App() {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
-  const [isMobileChatOpen, setIsMobileChatOpen] = useState(true);
 
   // Check for hidden /adminpanel route access
   useEffect(() => {
-    const checkAdminRoute = () => {
-      const path = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      if (path.endsWith('/adminpanel') || hash === '#adminpanel' || hash === '#/adminpanel') {
-        setIsAdminOpen(true);
-      }
-    };
-    checkAdminRoute();
-    window.addEventListener('popstate', checkAdminRoute);
-    window.addEventListener('hashchange', checkAdminRoute);
-    return () => {
-      window.removeEventListener('popstate', checkAdminRoute);
-      window.removeEventListener('hashchange', checkAdminRoute);
-    };
+    if (window.location.pathname === '/adminpanel') {
+      setIsAdminOpen(true);
+    }
   }, []);
 
-  // Keyboard shortcut Esc to skip stranger
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (status === 'connected' || status === 'searching') {
-          skipStranger();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [status, skipStranger]);
-
-  const handleSaveGuestProfile = (updated: typeof profile) => {
-    updateProfile(updated);
-  };
-
-  const handleGoogleAuth = (googleUser: { id: string; name: string; picture?: string }) => {
+  const handleSaveGuestProfile = (nickname: string, gender: string, ageConfirmed: boolean) => {
     updateProfile({
-      ...profile,
-      googleUser,
-      displayName: googleUser.name || profile.displayName,
-      ageVerified: true,
+      displayName: nickname,
+      gender: gender as any,
+      ageVerified: ageConfirmed,
     });
   };
 
-  const currentMode = roomInfo?.mode || profile.preferredFilters.mode || 'text';
+  const handleGoogleAuth = (googleUser: any) => {
+    updateProfile({
+      displayName: googleUser.name,
+      avatarUrl: googleUser.picture,
+      googleUser: googleUser,
+      ageVerified: true,
+    });
+    setIsAuthOpen(false);
+  };
+
+  const currentMode = roomInfo?.mode || profile.preferredFilters.mode || 'video';
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-white selection:text-black">
       
-      {/* Navigation Bar */}
+      {/* Navigation Header */}
       <Navbar
         profile={profile}
         onlineCount={onlineCount}
@@ -116,7 +96,7 @@ export default function App() {
         onOpenAdmin={() => setIsAdminOpen(true)}
       />
 
-      {/* Main App Canvas */}
+      {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 flex flex-col gap-4">
         
         {/* State 1: IDLE WELCOME & DASHBOARD */}
@@ -126,27 +106,25 @@ export default function App() {
             {/* Hero Stats Banner */}
             <StatsBanner
               onlineCount={onlineCount}
-              onStartText={() => startMatchmaking('text')}
-              onStartVideo={() => startMatchmaking('video')}
             />
 
-            {/* Top Monetization Leaderboard Ad Banner */}
+            {/* Top Monetization Leaderboard Ad Banner (Hides if unfilled) */}
             <AdBanner format="banner" className="my-1" />
 
             {/* Profile & Filters Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
               {/* Profile Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
-                    <User className="w-4 h-4 text-indigo-500" />
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <div className="flex items-center gap-2 font-bold text-white text-sm">
+                    <User className="w-4 h-4 text-zinc-400" />
                     <span>Your Local Profile</span>
                   </div>
                   <button
                     onClick={() => setIsProfileOpen(true)}
                     id="edit-profile-card-btn"
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    className="text-xs font-bold text-white hover:underline"
                   >
                     Edit
                   </button>
@@ -154,29 +132,29 @@ export default function App() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Nickname:</span>
-                    <span className="font-bold text-slate-900 dark:text-white">{profile.displayName}</span>
+                    <span className="text-zinc-400">Nickname:</span>
+                    <span className="font-bold text-white">{profile.displayName}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Gender:</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200 capitalize">{profile.gender}</span>
+                    <span className="text-zinc-400">Gender:</span>
+                    <span className="font-medium text-zinc-300 capitalize">{profile.gender}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Country:</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{profile.country}</span>
+                    <span className="text-zinc-400">Country:</span>
+                    <span className="font-medium text-zinc-300">{profile.country}</span>
                   </div>
                 </div>
 
                 {profile.interests && profile.interests.length > 0 && (
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1.5 font-semibold">
+                  <div className="pt-2 border-t border-zinc-800">
+                    <span className="text-[11px] text-zinc-400 block mb-1.5 font-semibold">
                       Interests
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {profile.interests.map((tag) => (
                         <span
                           key={tag}
-                          className="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold"
+                          className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 text-[10px] font-bold"
                         >
                           #{tag}
                         </span>
@@ -187,16 +165,16 @@ export default function App() {
               </div>
 
               {/* Match Preferences Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
-                    <Filter className="w-4 h-4 text-purple-500" />
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <div className="flex items-center gap-2 font-bold text-white text-sm">
+                    <Filter className="w-4 h-4 text-zinc-400" />
                     <span>Match Filters</span>
                   </div>
                   <button
                     onClick={() => setIsProfileOpen(true)}
                     id="edit-filters-card-btn"
-                    className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline"
+                    className="text-xs font-bold text-white hover:underline"
                   >
                     Adjust
                   </button>
@@ -204,47 +182,47 @@ export default function App() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Target Gender:</span>
-                    <span className="font-bold text-slate-900 dark:text-white capitalize">{profile.preferredFilters.gender}</span>
+                    <span className="text-zinc-400">Target Gender:</span>
+                    <span className="font-bold text-white capitalize">{profile.preferredFilters.gender}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Location:</span>
-                    <span className="font-bold text-slate-900 dark:text-white capitalize">{profile.preferredFilters.country}</span>
+                    <span className="text-zinc-400">Location:</span>
+                    <span className="font-bold text-white capitalize">{profile.preferredFilters.country}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Common Interests:</span>
-                    <span className="font-semibold text-emerald-500">
+                    <span className="text-zinc-400">Common Interests:</span>
+                    <span className="font-semibold text-white">
                       {profile.preferredFilters.commonInterests ? 'Enabled' : 'Off'}
                     </span>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-500">
                   <span>Fallback Global Search</span>
-                  <span className="font-bold text-indigo-400">
+                  <span className="font-bold text-zinc-300">
                     {profile.preferredFilters.globalSearch ? 'Active' : 'Disabled'}
                   </span>
                 </div>
               </div>
 
               {/* Community Safety Commitment Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-                <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4">
+                <div className="flex items-center gap-2 font-bold text-white text-sm border-b border-zinc-800 pb-3">
+                  <ShieldCheck className="w-4 h-4 text-white" />
                   <span>Privacy & Community Safety</span>
                 </div>
 
-                <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                <ul className="space-y-2 text-xs text-zinc-400 leading-relaxed">
                   <li className="flex items-start gap-2">
-                    <Lock className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                    <Lock className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" />
                     <span>No database storing messages or personal records.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-white shrink-0 mt-0.5" />
                     <span>Strict 18+ adult age declaration required.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-pink-500 shrink-0 mt-0.5" />
+                    <Zap className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" />
                     <span>Instant session block & report capabilities.</span>
                   </li>
                 </ul>
@@ -253,7 +231,7 @@ export default function App() {
                   <button
                     onClick={() => startMatchmaking('text')}
                     id="quick-start-text-btn"
-                    className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-800 dark:text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-white hover:text-black text-white border border-zinc-800 text-xs font-bold transition-all flex items-center justify-center gap-2"
                   >
                     <MessageSquare className="w-4 h-4" />
                     Launch Text Chat Now
@@ -267,40 +245,40 @@ export default function App() {
             <AdBanner format="banner" className="my-2" />
 
             {/* Semantic SEO Informational & FAQ Section */}
-            <section className="pt-6 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
+            <section className="pt-6 border-t border-zinc-800 space-y-6">
               <div className="text-center space-y-2">
-                <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                <h2 className="text-lg font-black text-white uppercase tracking-wider">
                   Why StrangerPulse is the Best Random Stranger Chat Platform
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
+                <p className="text-xs text-zinc-400 max-w-xl mx-auto">
                   StrangerPulse connects millions of people around the globe for free anonymous text and high-definition video chat with smart interest matching.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <article className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
-                  <h3 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                    <Zap className="w-4 h-4" /> Instant Peer Connection
+                <article className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 shadow-sm">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5 uppercase">
+                    <Zap className="w-4 h-4 text-zinc-400" /> Instant Peer Connection
                   </h3>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
                     Powered by ultra low-latency WebRTC and Socket.IO servers, connect to strangers worldwide in less than 2 seconds.
                   </p>
                 </article>
 
-                <article className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
-                  <h3 className="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                    <Filter className="w-4 h-4" /> Smart Interest Matching
+                <article className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 shadow-sm">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5 uppercase">
+                    <Filter className="w-4 h-4 text-zinc-400" /> Smart Interest Matching
                   </h3>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Match with people who share your passion for gaming, music, movies, or travel using custom tag filters.
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Match with strangers who share your passion for gaming, music, movies, or travel using custom tag filters.
                   </p>
                 </article>
 
-                <article className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
-                  <h3 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4" /> Zero Log Privacy
+                <article className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 shadow-sm">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5 uppercase">
+                    <ShieldCheck className="w-4 h-4 text-zinc-400" /> Zero Log Privacy
                   </h3>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
                     Your chat messages are never saved on any database server. Your profile is stored locally on your device.
                   </p>
                 </article>

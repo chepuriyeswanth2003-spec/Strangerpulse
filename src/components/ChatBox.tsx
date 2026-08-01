@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, PublicProfile } from '../types';
-import { Send, Smile, Copy, Check, ShieldAlert, Sparkles, Globe, Heart, MessageSquarePlus, RefreshCw, X } from 'lucide-react';
+import { Send, Smile, Copy, Check, ShieldAlert, Sparkles, Globe, MessageSquarePlus, RefreshCw, X } from 'lucide-react';
 import { AdBanner } from './AdBanner';
 
 interface ChatBoxProps {
@@ -36,7 +36,6 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   onSendMessage,
   onTyping,
   onReportClick,
-  isMobileOverlay = false,
   onCloseMobileOverlay,
 }) => {
   const [inputText, setInputText] = useState('');
@@ -67,7 +66,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     setDismissedIcebreakers(true);
   };
 
-  // Auto-scroll inside chat container ONLY (prevents mobile page scrolling to bottom)
+  // Auto-scroll inside chat container
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -92,10 +91,10 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   };
 
   const handleCopyChat = () => {
+    if (messages.length === 0) return;
     const chatText = messages
-      .map((m) => `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.sender.toUpperCase()}: ${m.text}`)
+      .map((m) => `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.sender === 'self' ? 'You' : partnerProfile?.nickname || 'Stranger'}: ${m.text}`)
       .join('\n');
-
     navigator.clipboard.writeText(chatText).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -103,35 +102,35 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-[220px] sm:min-h-[350px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-3xl overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-full min-h-[220px] sm:min-h-[350px] bg-zinc-950 border border-zinc-800 shadow-2xl rounded-3xl overflow-hidden relative">
       
       {/* Header Bar */}
-      <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between">
+      <div className="px-4 sm:px-5 py-3 border-b border-zinc-800 bg-black/80 flex items-center justify-between">
         {partnerProfile ? (
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-white text-black font-extrabold text-xs flex items-center justify-center shadow-md">
               {partnerProfile.nickname.charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                <span className="font-bold text-white text-xs sm:text-sm">
                   {partnerProfile.nickname}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-semibold border border-emerald-500/20">
+                <span className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-[9px] font-bold border border-zinc-700">
                   Online
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
                 <span className="flex items-center gap-1">
-                  <Globe className="w-3 h-3 text-indigo-400" />
+                  <Globe className="w-3 h-3 text-zinc-400" />
                   {partnerProfile.country}
                 </span>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium">
-            <Sparkles className="w-4 h-4 text-indigo-500 animate-spin" />
+          <div className="flex items-center gap-2 text-zinc-400 text-xs font-medium">
+            <Sparkles className="w-4 h-4 text-zinc-300 animate-spin" />
             <span>Waiting to connect with stranger...</span>
           </div>
         )}
@@ -142,10 +141,10 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
             <button
               onClick={handleCopyChat}
               id="copy-chat-btn"
-              className="px-2 py-1.5 rounded-xl bg-slate-200/60 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
+              className="px-2 py-1.5 rounded-xl bg-zinc-900 text-zinc-300 text-xs font-semibold border border-zinc-800 hover:bg-zinc-800 transition-colors flex items-center gap-1"
               title="Copy Chat Log"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
             </button>
           )}
@@ -154,7 +153,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
             <button
               onClick={onReportClick}
               id="report-stranger-btn"
-              className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
               title="Report Stranger"
             >
               <ShieldAlert className="w-4 h-4" />
@@ -164,7 +163,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
           {onCloseMobileOverlay && (
             <button
               onClick={onCloseMobileOverlay}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
               title="Close Floating Chat"
             >
               <X className="w-4 h-4" />
@@ -173,8 +172,8 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
         </div>
       </div>
 
-      {/* Persistent Top Ad Banner Slot (Fixed, outside scrollable region) */}
-      <div className="px-3 py-1 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0">
+      {/* Persistent Top Ad Banner Slot (Auto-hides if unfilled) */}
+      <div className="px-3 py-1 border-b border-zinc-900 bg-black/50 flex-shrink-0">
         <AdBanner format="banner" />
       </div>
 
@@ -185,7 +184,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
             return (
               <div
                 key={msg.id}
-                className="my-3 mx-auto max-w-sm px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm"
+                className="my-3 mx-auto max-w-sm px-4 py-2 rounded-2xl bg-zinc-900 border border-zinc-800 text-center text-xs font-semibold text-zinc-300 shadow-sm"
               >
                 {msg.text}
               </div>
@@ -199,15 +198,15 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
               className={`flex flex-col ${isSelf ? 'items-end' : 'items-start'} space-y-1`}
             >
               <div
-                className={`max-w-[82%] sm:max-w-[70%] px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm leading-relaxed ${
+                className={`max-w-[82%] sm:max-w-[70%] px-4 py-2.5 rounded-2xl text-sm font-semibold shadow-md leading-relaxed ${
                   isSelf
-                    ? 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white rounded-br-none'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200/50 dark:border-slate-700/50'
+                    ? 'bg-white text-black rounded-br-none'
+                    : 'bg-zinc-900 text-white rounded-bl-none border border-zinc-800'
                 }`}
               >
                 {msg.text}
               </div>
-              <span className="text-[10px] text-slate-400 font-mono px-1">
+              <span className="text-[10px] text-zinc-500 font-mono px-1">
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -216,23 +215,23 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
 
         {/* Typing indicator */}
         {isPartnerTyping && (
-          <div className="flex items-center gap-2 text-slate-400 text-xs italic pl-2 pt-1">
+          <div className="flex items-center gap-2 text-zinc-400 text-xs italic pl-2 pt-1">
             <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></span>
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.4s]"></span>
+              <span className="w-2 h-2 rounded-full bg-white animate-bounce"></span>
+              <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:0.2s]"></span>
+              <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:0.4s]"></span>
             </div>
             <span>Stranger is typing...</span>
           </div>
         )}
       </div>
 
-      {/* Icebreaker Questions Bar (Appears when connected to stranger and not dismissed) */}
+      {/* Icebreaker Questions Bar */}
       {partnerProfile && !dismissedIcebreakers && icebreakers.length > 0 && (
-        <div className="px-4 py-2.5 bg-indigo-500/10 dark:bg-indigo-950/40 border-t border-b border-indigo-500/20 space-y-2 animate-fadeIn">
+        <div className="px-4 py-2.5 bg-zinc-900 border-t border-b border-zinc-800 space-y-2 animate-fadeIn">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5 uppercase tracking-wider">
-              <MessageSquarePlus className="w-3.5 h-3.5 text-indigo-500" />
+            <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5 uppercase tracking-wider">
+              <MessageSquarePlus className="w-3.5 h-3.5 text-white" />
               Icebreaker Questions
             </span>
             <div className="flex items-center gap-2">
@@ -240,7 +239,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
                 type="button"
                 onClick={handleRefreshIcebreakers}
                 id="refresh-icebreakers-btn"
-                className="p-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1 text-[10px] font-semibold"
+                className="p-1 text-zinc-400 hover:text-white transition-colors flex items-center gap-1 text-[10px] font-semibold"
                 title="Get new icebreaker ideas"
               >
                 <RefreshCw className="w-3 h-3" />
@@ -249,7 +248,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
               <button
                 type="button"
                 onClick={() => setDismissedIcebreakers(true)}
-                className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                className="text-[10px] font-semibold text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 Dismiss
               </button>
@@ -263,7 +262,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
                 type="button"
                 onClick={() => handleSelectIcebreaker(q)}
                 id={`icebreaker-btn-${idx}`}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all text-left shadow-sm active:scale-95 flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-black text-zinc-200 border border-zinc-800 hover:border-zinc-500 hover:bg-zinc-800 transition-all text-left shadow-sm active:scale-95 flex items-center gap-1.5"
               >
                 <span>{q}</span>
               </button>
@@ -274,14 +273,12 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
 
       {/* Emoji Picker Popup */}
       {showEmojis && (
-        <div className="absolute bottom-16 left-4 z-20 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex flex-wrap gap-2 max-w-[240px]">
+        <div className="absolute bottom-16 left-4 z-20 p-3 bg-zinc-900 rounded-2xl border border-zinc-800 shadow-2xl flex flex-wrap gap-2 max-w-[240px]">
           {EMOJI_LIST.map((emoji) => (
             <button
               key={emoji}
               type="button"
-              onClick={() => {
-                setInputText((prev) => prev + emoji);
-              }}
+              onClick={() => setInputText((prev) => prev + emoji)}
               className="text-lg hover:scale-125 transition-transform p-1"
             >
               {emoji}
@@ -293,13 +290,13 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
       {/* Input Bar */}
       <form
         onSubmit={handleSend}
-        className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center gap-2"
+        className="p-3 sm:p-4 border-t border-zinc-800 bg-black/60 flex items-center gap-2"
       >
         <button
           type="button"
           onClick={() => setShowEmojis((prev) => !prev)}
           id="emoji-picker-btn"
-          className="p-2.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          className="p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
           title="Add Emoji"
         >
           <Smile className="w-5 h-5" />
@@ -313,14 +310,14 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
           disabled={!partnerProfile}
           id="chat-message-input"
           placeholder={partnerProfile ? 'Type a message to stranger... (Press Enter)' : 'Connect to a stranger to start chatting...'}
-          className="flex-1 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 text-sm outline-none disabled:opacity-50"
+          className="flex-1 px-4 py-2.5 rounded-2xl bg-zinc-900 text-white placeholder-zinc-500 border border-zinc-800 focus:ring-2 focus:ring-zinc-400 text-sm outline-none disabled:opacity-50"
         />
 
         <button
           type="submit"
           disabled={!inputText.trim() || !partnerProfile}
           id="send-message-btn"
-          className="p-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold transition-all shadow-md shadow-indigo-600/20 active:scale-95"
+          className="p-2.5 rounded-2xl bg-white hover:bg-zinc-200 disabled:opacity-30 text-black font-extrabold transition-all shadow-md active:scale-95"
         >
           <Send className="w-5 h-5" />
         </button>
