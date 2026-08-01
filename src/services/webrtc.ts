@@ -2,6 +2,30 @@ import { socketService } from './socket';
 
 export const DEFAULT_VIDEO_BITRATE_FLOOR = 2500000; // 2.5 Mbps High-Def target
 
+function setSDPBitrate(sdp: string, bitrateKbps: number = 2500): string {
+  let lines = sdp.split('\r\n');
+  let inVideo = false;
+  let newLines: string[] = [];
+
+  for (let line of lines) {
+    if (line.startsWith('m=video')) {
+      inVideo = true;
+      newLines.push(line);
+      newLines.push(`b=AS:${bitrateKbps}`);
+      newLines.push(`b=TIAS:${bitrateKbps * 1000}`);
+      continue;
+    }
+    if (line.startsWith('m=') && !line.startsWith('m=video')) {
+      inVideo = false;
+    }
+    if (inVideo && (line.startsWith('b=AS:') || line.startsWith('b=TIAS:'))) {
+      continue;
+    }
+    newLines.push(line);
+  }
+  return newLines.join('\r\n');
+}
+
 const getIceServers = (): RTCConfiguration => {
   const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME || 'openrelayproject';
   const turnCredential = (import.meta as any).env?.VITE_TURN_CREDENTIAL || (import.meta as any).env?.VITE_TURN_PASSWORD || 'openrelayproject';
@@ -11,8 +35,16 @@ const getIceServers = (): RTCConfiguration => {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
       {
-        urls: turnUrl || ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'],
+        urls: turnUrl || [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
         username: turnUsername,
         credential: turnCredential,
       },
@@ -146,7 +178,7 @@ export class WebRTCManager {
           this.connectionTimeoutTimer = null;
         }
 
-        // Apply bitrate parameter smoothly after connection is established
+        // Apply high-bandwidth sender parameters smoothly after connection
         const videoSender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'video');
         if (videoSender) {
           try {
@@ -171,7 +203,12 @@ export class WebRTCManager {
       if (!this.peerConnection) return;
       try {
         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await this.peerConnection.createAnswer();
+        const rawAnswer = await this.peerConnection.createAnswer();
+        
+        // Inject high bandwidth allocation into SDP Answer (Forces 2.5 Mbps consumption)
+        const sdpWithBitrate = setSDPBitrate(rawAnswer.sdp || '', 2500);
+        const answer = new RTCSessionDescription({ type: rawAnswer.type, sdp: sdpWithBitrate });
+
         await this.peerConnection.setLocalDescription(answer);
         socketService.sendWebRTCAnswer(this.roomId, answer);
       } catch (err) {
@@ -200,7 +237,12 @@ export class WebRTCManager {
     // Create SDP Offer if Initiator
     if (isInitiator) {
       try {
-        const offer = await this.peerConnection.createOffer();
+        const rawOffer = await this.peerConnection.createOffer();
+        
+        // Inject high bandwidth allocation into SDP Offer (Forces 2.5 Mbps consumption)
+        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2500);
+        const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
+
         await this.peerConnection.setLocalDescription(offer);
         socketService.sendWebRTCOffer(this.roomId, offer);
       } catch (err) {
@@ -212,7 +254,9 @@ export class WebRTCManager {
   public async restartIce(): Promise<void> {
     if (this.peerConnection && this.roomId) {
       try {
-        const offer = await this.peerConnection.createOffer({ iceRestart: true });
+        const rawOffer = await this.peerConnection.createOffer({ iceRestart: true });
+        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2500);
+        const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
         await this.peerConnection.setLocalDescription(offer);
         socketService.sendWebRTCOffer(this.roomId, offer);
       } catch (err) {
