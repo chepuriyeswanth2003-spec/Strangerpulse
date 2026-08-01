@@ -1,6 +1,6 @@
 import { socketService } from './socket';
 
-export const DEFAULT_VIDEO_BITRATE_FLOOR = 3000000; // 3.0 Mbps High-Def target
+export const DEFAULT_VIDEO_BITRATE_FLOOR = 2500000; // 2.5 Mbps High-Def target
 
 const getIceServers = (): RTCConfiguration => {
   const turnUsername = (import.meta as any).env?.VITE_TURN_USERNAME || 'openrelayproject';
@@ -47,9 +47,9 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: video
           ? {
-              width: { ideal: 1280, max: 1920 },
-              height: { ideal: 720, max: 1080 },
-              frameRate: { ideal: 30, min: 24 },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
               facingMode: 'user',
             }
           : false,
@@ -62,12 +62,11 @@ export class WebRTCManager {
 
       return this.localStream;
     } catch (err) {
-      console.error('Error accessing 720p media devices:', err);
-      // Fallback to basic camera if 720p ideal fails
+      console.error('Error accessing media devices:', err);
       if (video) {
         try {
           this.localStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            video: true,
             audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
           });
           if (this.onLocalStreamCallback && this.localStream) {
@@ -75,7 +74,6 @@ export class WebRTCManager {
           }
           return this.localStream;
         } catch (subErr) {
-          // Fallback to audio-only if video fails
           if (audio) {
             try {
               this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
@@ -101,38 +99,21 @@ export class WebRTCManager {
     this.peerConnection = new RTCPeerConnection(config);
     this.remoteStream = new MediaStream();
 
-    // 20-second fallback connection timeout for ICE candidate gathering
+    // 25-second fallback connection timeout for ICE candidate gathering
     this.connectionTimeoutTimer = setTimeout(() => {
       if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
-        console.warn('WebRTC peer connection timed out after 20 seconds');
+        console.warn('WebRTC peer connection timed out after 25 seconds');
         if (this.onConnectionTimeoutCallback) {
           this.onConnectionTimeoutCallback();
         }
       }
-    }, 20000);
+    }, 25000);
 
-    // Add local tracks & set H.264 / VP8 hardware accelerated codec preference
+    // Add local tracks to peer connection
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         if (this.peerConnection && this.localStream) {
-          const sender = this.peerConnection.addTrack(track, this.localStream);
-          if (track.kind === 'video' && 'RTCRtpSender' in window && 'getCapabilities' in RTCRtpSender) {
-            try {
-              // Prefer H.264 hardware acceleration for 0ms latency & crisp 720p
-              const capabilities = RTCRtpSender.getCapabilities('video');
-              if (capabilities && capabilities.codecs) {
-                const preferredCodecs = capabilities.codecs.filter(
-                  (c) => c.mimeType.toLowerCase() === 'video/h264' || c.mimeType.toLowerCase() === 'video/vp8'
-                );
-                const transceiver = this.peerConnection.getTransceivers().find((t) => t.sender === sender);
-                if (transceiver && 'setCodecPreferences' in transceiver && preferredCodecs.length > 0) {
-                  transceiver.setCodecPreferences(preferredCodecs);
-                }
-              }
-            } catch (e) {
-              // Ignore codec preference error on unsupported browsers
-            }
-          }
+          this.peerConnection.addTrack(track, this.localStream);
         }
       });
     }
@@ -154,7 +135,7 @@ export class WebRTCManager {
       }
     };
 
-    // Apply Crisp 720p HD Bitrate & maintain-resolution mode ONCE CONNECTED
+    // Handle connection state changes & clear timeout
     this.peerConnection.onconnectionstatechange = () => {
       if (!this.peerConnection) return;
       const state = this.peerConnection.connectionState;
@@ -165,20 +146,17 @@ export class WebRTCManager {
           this.connectionTimeoutTimer = null;
         }
 
-        // Apply 3.0 Mbps Bitrate Floor & maintain-resolution mode AFTER connected (prevents blurring)
+        // Apply bitrate parameter smoothly after connection is established
         const videoSender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'video');
         if (videoSender) {
           try {
             const params = videoSender.getParameters();
-            if (!params.encodings || params.encodings.length === 0) {
-              params.encodings = [{}];
+            if (params && params.encodings && params.encodings.length > 0) {
+              params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps crisp 720p HD
+              videoSender.setParameters(params).catch(() => {});
             }
-            params.encodings[0].maxBitrate = 3500000; // 3.5 Mbps Max target
-            // @ts-ignore
-            params.degradationPreference = 'maintain-resolution'; // NEVER downscale or blur pixels!
-            videoSender.setParameters(params).catch((e) => console.warn('Could not set connected bitrate:', e));
           } catch (e) {
-            console.warn('Error applying connected video sender parameters:', e);
+            // Ignore bitrate errors
           }
         }
       }

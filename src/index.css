@@ -26,6 +26,18 @@
   }
 }
 
+/* Force Hand Pointer Cursor for All Clickable Buttons, Links, Badges & Inputs */
+button,
+a,
+select,
+[role="button"],
+input[type="submit"],
+input[type="button"],
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer !important;
+}
+
 body {
   background-color: #000000;
   color: #ffffff;
