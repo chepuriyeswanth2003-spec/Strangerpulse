@@ -27,70 +27,33 @@ function setSDPBitrate(sdp: string, bitrateKbps: number = 2000): string {
   return newLines.join('\r\n');
 }
 
-const fetchIceServers = async (): Promise<RTCConfiguration> => {
-  const stunServers: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-  ];
+const DEFAULT_STUN_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+];
 
-  try {
-    const res = await fetch('/api/turn-credentials', { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      const iceServers: RTCIceServer[] = [];
-
-      // Primary ExpressTurn entry (FIRST for all connections)
-      if (data.expressTurn && data.expressTurn.urls && data.expressTurn.urls.length > 0) {
-        iceServers.push({
-          urls: data.expressTurn.urls,
-          username: data.expressTurn.username,
-          credential: data.expressTurn.credential,
-        });
-      }
-
-      // Add STUN servers
-      iceServers.push(...stunServers);
-
-      // Secondary Coturn entry (if configured)
-      if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
-        iceServers.push({
-          urls: data.coturn.urls,
-          username: data.coturn.username,
-          credential: data.coturn.credential,
-        });
-      }
-
-      return {
-        iceServers,
-        bundlePolicy: 'max-bundle',
-        iceCandidatePoolSize: 10,
-      };
-    }
-  } catch (err) {
-    console.warn('Failed to fetch dynamic TURN credentials:', err);
-  }
-
-  return {
-    iceServers: [
-      {
-        urls: [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp',
-        ],
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-      },
-      ...stunServers,
-    ],
-    bundlePolicy: 'max-bundle',
-    iceCandidatePoolSize: 10,
-  };
+const DEFAULT_ICE_CONFIG: RTCConfiguration = {
+  iceServers: [
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    ...DEFAULT_STUN_SERVERS,
+  ],
+  bundlePolicy: 'max-bundle',
+  iceCandidatePoolSize: 10,
 };
+
+let cachedIceConfig: RTCConfiguration = DEFAULT_ICE_CONFIG;
 
 export class WebRTCManager {
   private peerConnection: RTCPeerConnection | null = null;
@@ -117,7 +80,50 @@ export class WebRTCManager {
     return this.peerConnection;
   }
 
+  // Pre-fetch TURN credentials in background so initPeerConnection is 100% synchronous
+  public async preloadIceServers(): Promise<void> {
+    try {
+      const res = await fetch('/api/turn-credentials', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        const iceServers: RTCIceServer[] = [];
+
+        // Primary ExpressTurn entry (FIRST for all connections)
+        if (data.expressTurn && data.expressTurn.urls && data.expressTurn.urls.length > 0) {
+          iceServers.push({
+            urls: data.expressTurn.urls,
+            username: data.expressTurn.username,
+            credential: data.expressTurn.credential,
+          });
+        }
+
+        // Add STUN servers
+        iceServers.push(...DEFAULT_STUN_SERVERS);
+
+        // Secondary Coturn entry (if configured)
+        if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
+          iceServers.push({
+            urls: data.coturn.urls,
+            username: data.coturn.username,
+            credential: data.coturn.credential,
+          });
+        }
+
+        cachedIceConfig = {
+          iceServers,
+          bundlePolicy: 'max-bundle',
+          iceCandidatePoolSize: 10,
+        };
+      }
+    } catch (err) {
+      console.warn('Failed to pre-fetch dynamic TURN credentials, using default pool:', err);
+    }
+  }
+
   public async getLocalMedia(video: boolean = true, audio: boolean = true): Promise<MediaStream | null> {
+    // Pre-fetch ice servers when local camera initializes
+    this.preloadIceServers();
+
     try {
       if (this.localStream) {
         this.stopLocalMedia();
@@ -170,13 +176,13 @@ export class WebRTCManager {
     }
   }
 
-  public async initPeerConnection(roomId: string, isInitiator: boolean): Promise<void> {
+  // Instant 0ms Synchronous PeerConnection Initialization
+  public initPeerConnection(roomId: string, isInitiator: boolean): void {
     this.roomId = roomId;
     this.cleanupPeerConnection();
 
-    // Fetch short-lived TURN credentials dynamically from server endpoint
-    const config = await fetchIceServers();
-    this.peerConnection = new RTCPeerConnection(config);
+    // Use cached TURN / STUN configuration synchronously
+    this.peerConnection = new RTCPeerConnection(cachedIceConfig);
     this.remoteStream = new MediaStream();
 
     // Reset adaptive bitrate state
@@ -187,7 +193,7 @@ export class WebRTCManager {
     this.prevPacketsLost = 0;
     this.prevPacketsSent = 0;
 
-    // 35-second fallback connection timeout for global cross-region ICE candidate gathering
+    // 35-second fallback connection timeout for global cross-region candidate gathering
     this.connectionTimeoutTimer = setTimeout(() => {
       if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
         console.warn('WebRTC peer connection timed out after 35 seconds');
@@ -260,7 +266,7 @@ export class WebRTCManager {
       }
     };
 
-    // Setup socket listeners for signaling
+    // INSTANT SOCKET SUBSCRIPTIONS (Never drops SDP Offers or ICE Candidates)
     socketService.subscribe('webrtc_offer', async (offer: RTCSessionDescriptionInit) => {
       if (!this.peerConnection) return;
       try {
@@ -296,20 +302,23 @@ export class WebRTCManager {
       }
     });
 
-    // Create SDP Offer if Initiator
+    // Create SDP Offer synchronously if Initiator
     if (isInitiator) {
-      try {
-        const rawOffer = await this.peerConnection.createOffer();
-        
-        // Inject SDP ceiling target
-        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2000);
-        const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
+      (async () => {
+        try {
+          if (!this.peerConnection) return;
+          const rawOffer = await this.peerConnection.createOffer();
+          
+          // Inject SDP ceiling target
+          const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2000);
+          const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
 
-        await this.peerConnection.setLocalDescription(offer);
-        socketService.sendWebRTCOffer(this.roomId, offer);
-      } catch (err) {
-        console.error('Error creating WebRTC offer:', err);
-      }
+          await this.peerConnection.setLocalDescription(offer);
+          socketService.sendWebRTCOffer(this.roomId, offer);
+        } catch (err) {
+          console.error('Error creating WebRTC offer:', err);
+        }
+      })();
     }
   }
 

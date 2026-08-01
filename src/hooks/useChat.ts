@@ -130,7 +130,7 @@ export function useChat() {
           ]);
         };
 
-        await webrtcManager.initPeerConnection(data.roomId, data.isInitiator);
+        webrtcManager.initPeerConnection(data.roomId, data.isInitiator);
       }
     });
 
