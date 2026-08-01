@@ -1,0 +1,17 @@
+{
+  "name": "StrangerPulse - Free Random Stranger Video & Text Chat",
+  "short_name": "StrangerPulse",
+  "description": "Connect instantly with random strangers worldwide for free text and live video chat with privacy filters.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

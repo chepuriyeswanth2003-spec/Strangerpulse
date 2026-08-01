@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface AdBannerProps {
   format?: 'banner' | 'rectangle' | 'inline' | 'sidebar';
-  adClient?: string; // e.g. "ca-pub-1234567890"
-  adSlot?: string;   // e.g. "1234567890"
-  refreshIntervalMs?: number; // Auto-refresh interval (default: 45000ms / 45s)
+  adClient?: string;
+  adSlot?: string;
+  refreshIntervalMs?: number;
   className?: string;
 }
 
@@ -16,7 +16,9 @@ export const AdBanner: React.FC<AdBannerProps> = ({
   className = '',
 }) => {
   const [adSenseFailed, setAdSenseFailed] = useState(false);
+  const [isUnfilled, setIsUnfilled] = useState(false);
   const [adKey, setAdKey] = useState(0);
+  const insRef = useRef<HTMLModElement | null>(null);
 
   const isValidAdSense = Boolean(adClient && adSlot && !adClient.includes('XXXX'));
 
@@ -36,7 +38,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({
     }
   }, [adClient, isValidAdSense]);
 
-  // Push new ad unit on mount and when adKey changes
+  // Push new ad unit on mount & observe unfilled attribute
   useEffect(() => {
     if (!isValidAdSense || adSenseFailed) return;
 
@@ -44,42 +46,67 @@ export const AdBanner: React.FC<AdBannerProps> = ({
       // @ts-ignore
       (window.adsbygoogle = window.adsbygoogle || []).push({});
     } catch (err) {
-      console.error('AdSense initialization error:', err);
+      console.warn('AdSense initialization error:', err);
       setAdSenseFailed(true);
     }
+
+    // Observer to detect if Google AdSense marks ins as unfilled
+    const checkUnfilled = () => {
+      if (insRef.current) {
+        const status = insRef.current.getAttribute('data-ad-status');
+        if (status === 'unfilled') {
+          setIsUnfilled(true);
+        }
+      }
+    };
+
+    const timer = setTimeout(checkUnfilled, 2000);
+
+    const observer = new MutationObserver(() => {
+      checkUnfilled();
+    });
+
+    if (insRef.current) {
+      observer.observe(insRef.current, { attributes: true, attributeFilter: ['data-ad-status'] });
+    }
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
   }, [adKey, isValidAdSense, adSenseFailed]);
 
-  // Periodic Auto-Refresh Timer to increase ad impressions
+  // Periodic Auto-Refresh Timer
   useEffect(() => {
-    if (!isValidAdSense || adSenseFailed || !refreshIntervalMs) return;
+    if (!isValidAdSense || adSenseFailed || isUnfilled || !refreshIntervalMs) return;
 
     const timer = setInterval(() => {
       setAdKey((prev) => prev + 1);
     }, refreshIntervalMs);
 
     return () => clearInterval(timer);
-  }, [isValidAdSense, adSenseFailed, refreshIntervalMs]);
+  }, [isValidAdSense, adSenseFailed, isUnfilled, refreshIntervalMs]);
 
-  const showRealAdSense = isValidAdSense && !adSenseFailed;
-
-  if (showRealAdSense) {
-    return (
-      <div className={`overflow-hidden text-center my-2 ${className}`}>
-        <span className="block text-[9px] uppercase tracking-wider text-slate-400 mb-1">Advertisement</span>
-        <ins
-          key={adKey}
-          className="adsbygoogle"
-          style={{ display: 'block' }}
-          data-ad-client={adClient}
-          data-ad-slot={adSlot}
-          data-ad-format={format === 'banner' ? 'horizontal' : format === 'sidebar' ? 'vertical' : 'auto'}
-          data-full-width-responsive="true"
-        />
-      </div>
-    );
+  // Hide the block entirely when no ad is returned to prevent blank spacing
+  if (!isValidAdSense || adSenseFailed || isUnfilled) {
+    return null;
   }
 
-  return null;
+  return (
+    <div className={`overflow-hidden text-center my-1 ${className}`}>
+      <span className="block text-[9px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-0.5">
+        Advertisement
+      </span>
+      <ins
+        ref={insRef}
+        key={adKey}
+        className="adsbygoogle"
+        style={{ display: 'block' }}
+        data-ad-client={adClient}
+        data-ad-slot={adSlot}
+        data-ad-format={format === 'banner' ? 'horizontal' : format === 'sidebar' ? 'vertical' : 'auto'}
+        data-full-width-responsive="true"
+      />
+    </div>
+  );
 };
-
-
