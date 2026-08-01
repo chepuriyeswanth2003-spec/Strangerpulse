@@ -41,23 +41,26 @@ const fetchIceServers = async (): Promise<RTCConfiguration> => {
     const res = await fetch('/api/turn-credentials', { method: 'POST' });
     if (res.ok) {
       const data = await res.json();
-      const iceServers: RTCIceServer[] = [...stunServers];
+      const iceServers: RTCIceServer[] = [];
 
-      // Primary uncapped Coturn TURN server entry
-      if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
-        iceServers.push({
-          urls: data.coturn.urls,
-          username: data.coturn.username,
-          credential: data.coturn.credential,
-        });
-      }
-
-      // Fallback ExpressTurn entry
+      // Primary ExpressTurn entry (FIRST for all connections)
       if (data.expressTurn && data.expressTurn.urls && data.expressTurn.urls.length > 0) {
         iceServers.push({
           urls: data.expressTurn.urls,
           username: data.expressTurn.username,
           credential: data.expressTurn.credential,
+        });
+      }
+
+      // Add STUN servers
+      iceServers.push(...stunServers);
+
+      // Secondary Coturn entry (if configured)
+      if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
+        iceServers.push({
+          urls: data.coturn.urls,
+          username: data.coturn.username,
+          credential: data.coturn.credential,
         });
       }
 
@@ -68,11 +71,22 @@ const fetchIceServers = async (): Promise<RTCConfiguration> => {
       };
     }
   } catch (err) {
-    console.warn('Failed to fetch dynamic TURN credentials, using STUN servers:', err);
+    console.warn('Failed to fetch dynamic TURN credentials:', err);
   }
 
   return {
-    iceServers: stunServers,
+    iceServers: [
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject',
+      },
+      ...stunServers,
+    ],
     bundlePolicy: 'max-bundle',
     iceCandidatePoolSize: 10,
   };
@@ -173,15 +187,15 @@ export class WebRTCManager {
     this.prevPacketsLost = 0;
     this.prevPacketsSent = 0;
 
-    // 25-second fallback connection timeout for ICE candidate gathering
+    // 35-second fallback connection timeout for global cross-region ICE candidate gathering
     this.connectionTimeoutTimer = setTimeout(() => {
       if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
-        console.warn('WebRTC peer connection timed out after 25 seconds');
+        console.warn('WebRTC peer connection timed out after 35 seconds');
         if (this.onConnectionTimeoutCallback) {
           this.onConnectionTimeoutCallback();
         }
       }
-    }, 25000);
+    }, 35000);
 
     // Add local tracks to peer connection
     if (this.localStream) {

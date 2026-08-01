@@ -221,19 +221,20 @@ async function startServer() {
       };
     }
 
-    let expressTurnData: { urls: string[]; username: string; credential: string } | null = null;
-    if (EXPRESSTURN_URLS.length > 0 && EXPRESSTURN_USERNAME && EXPRESSTURN_CREDENTIAL) {
-      expressTurnData = {
-        urls: EXPRESSTURN_URLS,
-        username: EXPRESSTURN_USERNAME,
-        credential: EXPRESSTURN_CREDENTIAL,
-      };
-    }
+    let expressTurnData: { urls: string[]; username: string; credential: string } = {
+      urls: EXPRESSTURN_URLS.length > 0 ? EXPRESSTURN_URLS : [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: EXPRESSTURN_USERNAME || 'openrelayproject',
+      credential: EXPRESSTURN_CREDENTIAL || 'openrelayproject',
+    };
 
     res.json({
       success: true,
-      coturn: coturnData,
       expressTurn: expressTurnData,
+      coturn: coturnData,
     });
   });
 
