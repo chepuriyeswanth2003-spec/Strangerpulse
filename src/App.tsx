@@ -325,8 +325,8 @@ export default function App() {
             </div>
 
             {/* Desktop Side-by-Side Experience Layout (lg:) */}
-            <div className="hidden lg:flex flex-col gap-4 flex-1">
-              <div className={`flex-1 grid gap-4 ${roomInfo.mode === 'video' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className="hidden lg:flex flex-col gap-4 flex-1 h-[calc(100vh-170px)] max-h-[750px] min-h-[480px]">
+              <div className={`flex-1 min-h-0 grid gap-4 ${roomInfo.mode === 'video' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {roomInfo.mode === 'video' && (
                   <VideoContainer
                     localStream={localStream}

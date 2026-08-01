@@ -53,9 +53,9 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: video
           ? {
-              width: { min: 1280, ideal: 1920 },
-              height: { min: 720, ideal: 1080 },
-              frameRate: { ideal: 30, min: 24 },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
               facingMode: 'user',
             }
           : false,
@@ -68,12 +68,12 @@ export class WebRTCManager {
 
       return this.localStream;
     } catch (err) {
-      console.error('Error accessing high-def media devices:', err);
-      // Fallback to standard 720p/480p if 1080p camera not supported
+      console.error('Error accessing media devices:', err);
+      // Fallback to basic video/audio if 720p ideal fails
       if (video) {
         try {
           this.localStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            video: true,
             audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
           });
           if (this.onLocalStreamCallback && this.localStream) {
@@ -107,17 +107,17 @@ export class WebRTCManager {
     this.peerConnection = new RTCPeerConnection(config);
     this.remoteStream = new MediaStream();
 
-    // Fast 10-second fallback connection timeout (connection establishes in 1-2 seconds)
+    // 20-second fallback connection timeout for candidate gathering
     this.connectionTimeoutTimer = setTimeout(() => {
       if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
-        console.warn('WebRTC peer connection timed out after 10 seconds');
+        console.warn('WebRTC peer connection timed out after 20 seconds');
         if (this.onConnectionTimeoutCallback) {
           this.onConnectionTimeoutCallback();
         }
       }
-    }, 10000);
+    }, 20000);
 
-    // Add local tracks & set bitrate floor + maintain-resolution preference
+    // Add local tracks & set adaptive maxBitrate
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         if (this.peerConnection && this.localStream) {
@@ -132,11 +132,7 @@ export class WebRTCManager {
           if (!params.encodings || params.encodings.length === 0) {
             params.encodings = [{}];
           }
-          params.encodings[0].maxBitrate = 4000000; // 4 Mbps Max
-          // @ts-ignore
-          params.encodings[0].minBitrate = DEFAULT_VIDEO_BITRATE_FLOOR; // 3.5 Mbps Floor
-          // @ts-ignore
-          params.degradationPreference = 'maintain-resolution'; // Never drop or blur pixel resolution
+          params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps adaptive max
           videoSender.setParameters(params).catch((e) => console.warn('Could not set video parameters:', e));
         } catch (e) {
           console.warn('Error applying video sender parameters:', e);

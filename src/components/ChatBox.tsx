@@ -177,8 +177,8 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
         <AdBanner format="banner" />
       </div>
 
-      {/* Message Stream */}
-      <div ref={chatContainerRef} className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-3.5">
+      {/* Message Stream (Strictly scrollable inside flexbox container) */}
+      <div ref={chatContainerRef} className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto space-y-3.5">
         {messages.map((msg) => {
           if (msg.sender === 'system') {
             return (
