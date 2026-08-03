@@ -1,9 +1,10 @@
 import { socketService } from './socket';
 
-export const BITRATE_CEILING_BPS = 2000000; // 2.0 Mbps Ceiling
-export const BITRATE_FLOOR_BPS = 150000;   // 150 kbps Floor
+export const BITRATE_INITIAL_START_BPS = 800000; // 800 kbps smooth start
+export const BITRATE_CEILING_BPS = 2000000;      // 2.0 Mbps Ceiling
+export const BITRATE_FLOOR_BPS = 150000;        // 150 kbps Floor
 
-function setSDPBitrate(sdp: string, bitrateKbps: number = 2000): string {
+function setSDPBitrate(sdp: string, bitrateKbps: number = 1500): string {
   let lines = sdp.split('\r\n');
   let inVideo = false;
   let newLines: string[] = [];
@@ -61,10 +62,11 @@ export class WebRTCManager {
   private remoteStream: MediaStream | null = null;
   private roomId: string = '';
   private connectionTimeoutTimer: NodeJS.Timeout | null = null;
+  private pendingCandidates: RTCIceCandidateInit[] = [];
   
   // Adaptive Bitrate & Stats Tracking
   private statsIntervalTimer: NodeJS.Timeout | null = null;
-  private currentMaxBitrate: number = BITRATE_CEILING_BPS;
+  private currentMaxBitrate: number = BITRATE_INITIAL_START_BPS;
   private unhealthyPollCount: number = 0;
   private healthyPollCount: number = 0;
   private currentResolution: '720p' | '480p' = '720p';
@@ -132,9 +134,9 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: video
           ? {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 30 },
+              width: { ideal: 960, max: 1280 },
+              height: { ideal: 540, max: 720 },
+              frameRate: { ideal: 24, max: 30 },
               facingMode: 'user',
             }
           : false,
@@ -184,9 +186,10 @@ export class WebRTCManager {
     // Use cached TURN / STUN configuration synchronously
     this.peerConnection = new RTCPeerConnection(cachedIceConfig);
     this.remoteStream = new MediaStream();
+    this.pendingCandidates = [];
 
-    // Reset adaptive bitrate state
-    this.currentMaxBitrate = BITRATE_CEILING_BPS;
+    // Reset adaptive bitrate state to smooth 800 kbps start
+    this.currentMaxBitrate = BITRATE_INITIAL_START_BPS;
     this.unhealthyPollCount = 0;
     this.healthyPollCount = 0;
     this.currentResolution = '720p';
@@ -240,7 +243,7 @@ export class WebRTCManager {
           this.connectionTimeoutTimer = null;
         }
 
-        // Apply bitrate ceiling & balanced degradation preference
+        // Apply smooth 800 kbps start bitrate & balanced degradation preference
         const videoSender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'video');
         if (videoSender) {
           try {
@@ -248,7 +251,7 @@ export class WebRTCManager {
             if (!params.encodings || params.encodings.length === 0) {
               params.encodings = [{}];
             }
-            params.encodings[0].maxBitrate = BITRATE_CEILING_BPS; // Ceiling, not floor
+            params.encodings[0].maxBitrate = BITRATE_INITIAL_START_BPS; // Start smooth at 800 kbps
             // @ts-ignore
             params.degradationPreference = 'balanced';
             videoSender.setParameters(params).catch(() => {});
@@ -266,15 +269,15 @@ export class WebRTCManager {
       }
     };
 
-    // INSTANT SOCKET SUBSCRIPTIONS (Never drops SDP Offers or ICE Candidates)
+    // INSTANT SOCKET SUBSCRIPTIONS with ICE Candidate Buffering
     socketService.subscribe('webrtc_offer', async (offer: RTCSessionDescriptionInit) => {
       if (!this.peerConnection) return;
       try {
         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        await this.flushPendingIceCandidates();
+
         const rawAnswer = await this.peerConnection.createAnswer();
-        
-        // Inject SDP ceiling target
-        const sdpWithBitrate = setSDPBitrate(rawAnswer.sdp || '', 2000);
+        const sdpWithBitrate = setSDPBitrate(rawAnswer.sdp || '', 1500);
         const answer = new RTCSessionDescription({ type: rawAnswer.type, sdp: sdpWithBitrate });
 
         await this.peerConnection.setLocalDescription(answer);
@@ -288,6 +291,7 @@ export class WebRTCManager {
       if (!this.peerConnection) return;
       try {
         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        await this.flushPendingIceCandidates();
       } catch (err) {
         console.error('Error handling WebRTC answer:', err);
       }
@@ -295,6 +299,11 @@ export class WebRTCManager {
 
     socketService.subscribe('webrtc_ice_candidate', async (candidate: RTCIceCandidateInit) => {
       if (!this.peerConnection) return;
+      if (!this.peerConnection.remoteDescription || !this.peerConnection.remoteDescription.type) {
+        // Buffer candidate until remote description is set
+        this.pendingCandidates.push(candidate);
+        return;
+      }
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
@@ -308,9 +317,7 @@ export class WebRTCManager {
         try {
           if (!this.peerConnection) return;
           const rawOffer = await this.peerConnection.createOffer();
-          
-          // Inject SDP ceiling target
-          const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2000);
+          const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 1500);
           const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
 
           await this.peerConnection.setLocalDescription(offer);
@@ -319,6 +326,20 @@ export class WebRTCManager {
           console.error('Error creating WebRTC offer:', err);
         }
       })();
+    }
+  }
+
+  private async flushPendingIceCandidates(): Promise<void> {
+    if (!this.peerConnection || !this.peerConnection.remoteDescription) return;
+    while (this.pendingCandidates.length > 0) {
+      const cand = this.pendingCandidates.shift();
+      if (cand) {
+        try {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(cand));
+        } catch (err) {
+          console.warn('Error flushing buffered ICE candidate:', err);
+        }
+      }
     }
   }
 
@@ -390,10 +411,10 @@ export class WebRTCManager {
           this.healthyPollCount++;
           this.unhealthyPollCount = 0;
 
-          // Healthy conditions for 15 seconds (5 consecutive polls): step maxBitrate back up toward ceiling
+          // Healthy conditions for 15 seconds (5 consecutive polls): step maxBitrate back up toward ceiling (2.0 Mbps)
           if (this.healthyPollCount >= 5) {
             if (this.currentMaxBitrate < BITRATE_CEILING_BPS) {
-              const nextBitrate = Math.min(BITRATE_CEILING_BPS, Math.floor(this.currentMaxBitrate * 1.33));
+              const nextBitrate = Math.min(BITRATE_CEILING_BPS, Math.floor(this.currentMaxBitrate * 1.25));
               if (nextBitrate !== this.currentMaxBitrate) {
                 this.currentMaxBitrate = nextBitrate;
                 this.applyBitrateParameters(this.currentMaxBitrate);
@@ -401,11 +422,11 @@ export class WebRTCManager {
               }
             }
 
-            // Restore resolution to 1280x720 @ 30fps if bandwidth recovers
+            // Restore resolution to 960x540 / 1280x720 @ 30fps if bandwidth recovers
             if (this.currentMaxBitrate > 500000 && this.currentResolution === '480p') {
-              this.applyCameraConstraints(1280, 720, 30);
+              this.applyCameraConstraints(960, 540, 30);
               this.currentResolution = '720p';
-              console.log('[WebRTC Adaptive] Network recovered. Restored local video track constraints to 1280x720 @ 30fps');
+              console.log('[WebRTC Adaptive] Network recovered. Restored local video track constraints to 960x540 @ 30fps');
             }
           }
         }
@@ -451,7 +472,7 @@ export class WebRTCManager {
     if (this.peerConnection && this.roomId) {
       try {
         const rawOffer = await this.peerConnection.createOffer({ iceRestart: true });
-        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 2000);
+        const sdpWithBitrate = setSDPBitrate(rawOffer.sdp || '', 1500);
         const offer = new RTCSessionDescription({ type: rawOffer.type, sdp: sdpWithBitrate });
         await this.peerConnection.setLocalDescription(offer);
         socketService.sendWebRTCOffer(this.roomId, offer);
@@ -508,6 +529,7 @@ export class WebRTCManager {
       this.peerConnection.close();
       this.peerConnection = null;
     }
+    this.pendingCandidates = [];
     this.remoteStream = null;
   }
 
