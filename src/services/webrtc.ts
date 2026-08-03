@@ -134,9 +134,9 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: video
           ? {
-              width: { ideal: 960, max: 1280 },
-              height: { ideal: 540, max: 720 },
-              frameRate: { ideal: 24, max: 30 },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
               facingMode: 'user',
             }
           : false,

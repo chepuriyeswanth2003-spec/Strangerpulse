@@ -34,6 +34,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
     }
   }, [localStream]);
 
@@ -41,6 +42,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(() => {});
     }
   }, [remoteStream]);
 
@@ -122,6 +124,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
             ref={remoteVideoRef}
             autoPlay
             playsInline
+            onLoadedMetadata={(e) => e.currentTarget.play().catch(() => {})}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -206,6 +209,7 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
               autoPlay
               muted
               playsInline
+              onLoadedMetadata={(e) => e.currentTarget.play().catch(() => {})}
               className="w-full h-full object-cover transform -scale-x-100"
             />
           ) : (

@@ -64,6 +64,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
     }
   }, [localStream]);
 
@@ -71,6 +72,7 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(() => {});
     }
   }, [remoteStream]);
 
