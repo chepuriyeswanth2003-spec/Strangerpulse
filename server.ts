@@ -199,14 +199,40 @@ async function startServer() {
       return res.status(403).json({ success: false, message: 'Banned IP' });
     }
 
-    const TURN_STATIC_SECRET = process.env.TURN_STATIC_SECRET || '';
-    const TURN_HOST = process.env.TURN_HOST || '';
+    const METERED_USERNAME = process.env.METERED_USERNAME || '';
+    const METERED_CREDENTIAL = process.env.METERED_CREDENTIAL || '';
+    const METERED_URLS = process.env.METERED_URLS ? process.env.METERED_URLS.split(',').map((u) => u.trim()) : [];
+
     const EXPRESSTURN_USERNAME = process.env.EXPRESSTURN_USERNAME || '';
     const EXPRESSTURN_CREDENTIAL = process.env.EXPRESSTURN_CREDENTIAL || '';
     const EXPRESSTURN_URLS = process.env.EXPRESSTURN_URLS ? process.env.EXPRESSTURN_URLS.split(',').map((u) => u.trim()) : [];
 
-    let coturnData: { urls: string[]; username: string; credential: string } | null = null;
+    const TURN_STATIC_SECRET = process.env.TURN_STATIC_SECRET || '';
+    const TURN_HOST = process.env.TURN_HOST || '';
 
+    // Primary: Metered TURN
+    let meteredTurnData: { urls: string[]; username: string; credential: string } = {
+      urls: METERED_URLS.length > 0 ? METERED_URLS : [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: METERED_USERNAME || 'openrelayproject',
+      credential: METERED_CREDENTIAL || 'openrelayproject',
+    };
+
+    // Secondary: ExpressTurn
+    let expressTurnData: { urls: string[]; username: string; credential: string } | null = null;
+    if (EXPRESSTURN_URLS.length > 0 && EXPRESSTURN_USERNAME && EXPRESSTURN_CREDENTIAL) {
+      expressTurnData = {
+        urls: EXPRESSTURN_URLS,
+        username: EXPRESSTURN_USERNAME,
+        credential: EXPRESSTURN_CREDENTIAL,
+      };
+    }
+
+    // Tertiary: Coturn (HMAC Short-Lived)
+    let coturnData: { urls: string[]; username: string; credential: string } | null = null;
     if (TURN_STATIC_SECRET && TURN_HOST) {
       const ttl = 3600; // 1 hour TTL
       const username = `${Math.floor(Date.now() / 1000) + ttl}:vibestream`;
@@ -221,18 +247,9 @@ async function startServer() {
       };
     }
 
-    let expressTurnData: { urls: string[]; username: string; credential: string } = {
-      urls: EXPRESSTURN_URLS.length > 0 ? EXPRESSTURN_URLS : [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: EXPRESSTURN_USERNAME || 'openrelayproject',
-      credential: EXPRESSTURN_CREDENTIAL || 'openrelayproject',
-    };
-
     res.json({
       success: true,
+      meteredTurn: meteredTurnData,
       expressTurn: expressTurnData,
       coturn: coturnData,
     });

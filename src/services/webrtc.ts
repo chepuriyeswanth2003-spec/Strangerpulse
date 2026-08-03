@@ -90,7 +90,16 @@ export class WebRTCManager {
         const data = await res.json();
         const iceServers: RTCIceServer[] = [];
 
-        // Primary ExpressTurn entry (FIRST for all connections)
+        // 1. PRIMARY: Metered TURN entry (FIRST for all connections)
+        if (data.meteredTurn && data.meteredTurn.urls && data.meteredTurn.urls.length > 0) {
+          iceServers.push({
+            urls: data.meteredTurn.urls,
+            username: data.meteredTurn.username,
+            credential: data.meteredTurn.credential,
+          });
+        }
+
+        // 2. SECONDARY: ExpressTurn entry
         if (data.expressTurn && data.expressTurn.urls && data.expressTurn.urls.length > 0) {
           iceServers.push({
             urls: data.expressTurn.urls,
@@ -99,10 +108,10 @@ export class WebRTCManager {
           });
         }
 
-        // Add STUN servers
+        // 3. STUN servers
         iceServers.push(...DEFAULT_STUN_SERVERS);
 
-        // Secondary Coturn entry (if configured)
+        // 4. TERTIARY: Coturn entry (if configured)
         if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
           iceServers.push({
             urls: data.coturn.urls,
