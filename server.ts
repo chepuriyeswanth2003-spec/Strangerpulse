@@ -189,8 +189,8 @@ async function startServer() {
     });
   });
 
-  // Short-Lived TURN Credential Generation Endpoint (Coturn REST API convention + ExpressTurn fallback)
-  app.post('/api/turn-credentials', (req, res) => {
+  // Short-Lived TURN Credential Generation Endpoint (Metered.live REST API + Fallback)
+  app.post('/api/turn-credentials', async (req, res) => {
     const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
       req.socket.remoteAddress ||
       '';
@@ -199,9 +199,8 @@ async function startServer() {
       return res.status(403).json({ success: false, message: 'Banned IP' });
     }
 
-    const METERED_USERNAME = process.env.METERED_USERNAME || '';
-    const METERED_CREDENTIAL = process.env.METERED_CREDENTIAL || '';
-    const METERED_URLS = process.env.METERED_URLS ? process.env.METERED_URLS.split(',').map((u) => u.trim()) : [];
+    const METERED_API_KEY = process.env.METERED_API_KEY || '41507d6461cbb407165615795e238855cd73';
+    const METERED_DOMAIN = process.env.METERED_DOMAIN || 'strangerpulse.metered.live';
 
     const EXPRESSTURN_USERNAME = process.env.EXPRESSTURN_USERNAME || '';
     const EXPRESSTURN_CREDENTIAL = process.env.EXPRESSTURN_CREDENTIAL || '';
@@ -210,16 +209,47 @@ async function startServer() {
     const TURN_STATIC_SECRET = process.env.TURN_STATIC_SECRET || '';
     const TURN_HOST = process.env.TURN_HOST || '';
 
-    // Primary: Metered TURN
-    let meteredTurnData: { urls: string[]; username: string; credential: string } = {
-      urls: METERED_URLS.length > 0 ? METERED_URLS : [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: METERED_USERNAME || 'openrelayproject',
-      credential: METERED_CREDENTIAL || 'openrelayproject',
-    };
+    let meteredIceServers: any[] = [];
+
+    // 1. Primary: Fetch live short-lived credentials from Metered.live REST API
+    try {
+      const response = await fetch(`https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`);
+      if (response.ok) {
+        const fetchedServers = await response.json();
+        if (Array.isArray(fetchedServers) && fetchedServers.length > 0) {
+          meteredIceServers = fetchedServers;
+        }
+      }
+    } catch (err) {
+      console.warn('[Metered TURN API] Could not fetch live REST credentials, using static fallback:', err);
+    }
+
+    // Static fallback for Metered.live if REST API fetch fails
+    if (meteredIceServers.length === 0) {
+      meteredIceServers = [
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        {
+          urls: 'turn:global.relay.metered.ca:80',
+          username: 'ada4e7efb9cd3d9e06f51f6e',
+          credential: 'b0GG+rYGSOVGb5jO',
+        },
+        {
+          urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+          username: 'ada4e7efb9cd3d9e06f51f6e',
+          credential: 'b0GG+rYGSOVGb5jO',
+        },
+        {
+          urls: 'turn:global.relay.metered.ca:443',
+          username: 'ada4e7efb9cd3d9e06f51f6e',
+          credential: 'b0GG+rYGSOVGb5jO',
+        },
+        {
+          urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+          username: 'ada4e7efb9cd3d9e06f51f6e',
+          credential: 'b0GG+rYGSOVGb5jO',
+        },
+      ];
+    }
 
     // Secondary: ExpressTurn
     let expressTurnData: { urls: string[]; username: string; credential: string } | null = null;
@@ -249,7 +279,7 @@ async function startServer() {
 
     res.json({
       success: true,
-      meteredTurn: meteredTurnData,
+      meteredTurn: meteredIceServers,
       expressTurn: expressTurnData,
       coturn: coturnData,
     });

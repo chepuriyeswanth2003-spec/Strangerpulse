@@ -39,14 +39,26 @@ const DEFAULT_STUN_SERVERS: RTCIceServer[] = [
 
 const DEFAULT_ICE_CONFIG: RTCConfiguration = {
   iceServers: [
+    { urls: 'stun:stun.relay.metered.ca:80' },
     {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:80',
+      username: 'ada4e7efb9cd3d9e06f51f6e',
+      credential: 'b0GG+rYGSOVGb5jO',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: 'ada4e7efb9cd3d9e06f51f6e',
+      credential: 'b0GG+rYGSOVGb5jO',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:443',
+      username: 'ada4e7efb9cd3d9e06f51f6e',
+      credential: 'b0GG+rYGSOVGb5jO',
+    },
+    {
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: 'ada4e7efb9cd3d9e06f51f6e',
+      credential: 'b0GG+rYGSOVGb5jO',
     },
     ...DEFAULT_STUN_SERVERS,
   ],
@@ -90,13 +102,17 @@ export class WebRTCManager {
         const data = await res.json();
         const iceServers: RTCIceServer[] = [];
 
-        // 1. PRIMARY: Metered TURN entry (FIRST for all connections)
-        if (data.meteredTurn && data.meteredTurn.urls && data.meteredTurn.urls.length > 0) {
-          iceServers.push({
-            urls: data.meteredTurn.urls,
-            username: data.meteredTurn.username,
-            credential: data.meteredTurn.credential,
-          });
+        // 1. PRIMARY: Metered.live TURN entry (FIRST for all connections)
+        if (data.meteredTurn) {
+          if (Array.isArray(data.meteredTurn)) {
+            iceServers.push(...data.meteredTurn);
+          } else if (data.meteredTurn.urls) {
+            iceServers.push({
+              urls: data.meteredTurn.urls,
+              username: data.meteredTurn.username,
+              credential: data.meteredTurn.credential,
+            });
+          }
         }
 
         // 2. SECONDARY: ExpressTurn entry
