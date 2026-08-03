@@ -199,8 +199,8 @@ async function startServer() {
       return res.status(403).json({ success: false, message: 'Banned IP' });
     }
 
-    const METERED_API_KEY = process.env.METERED_API_KEY || '41507d6461cbb407165615795e238855cd73';
-    const METERED_DOMAIN = process.env.METERED_DOMAIN || 'strangerpulse.metered.live';
+    const METERED_API_KEY = process.env.METERED_API_KEY || '';
+    const METERED_DOMAIN = process.env.METERED_DOMAIN || '';
 
     const EXPRESSTURN_USERNAME = process.env.EXPRESSTURN_USERNAME || '';
     const EXPRESSTURN_CREDENTIAL = process.env.EXPRESSTURN_CREDENTIAL || '';
@@ -211,43 +211,33 @@ async function startServer() {
 
     let meteredIceServers: any[] = [];
 
-    // 1. Primary: Fetch live short-lived credentials from Metered.live REST API
-    try {
-      const response = await fetch(`https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`);
-      if (response.ok) {
-        const fetchedServers = await response.json();
-        if (Array.isArray(fetchedServers) && fetchedServers.length > 0) {
-          meteredIceServers = fetchedServers;
+    // 1. Primary: Fetch live short-lived credentials from Metered.live REST API if ENV vars set
+    if (METERED_DOMAIN && METERED_API_KEY) {
+      try {
+        const response = await fetch(`https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`);
+        if (response.ok) {
+          const fetchedServers = await response.json();
+          if (Array.isArray(fetchedServers) && fetchedServers.length > 0) {
+            meteredIceServers = fetchedServers;
+          }
         }
+      } catch (err) {
+        console.warn('[Metered TURN API] Could not fetch live REST credentials:', err);
       }
-    } catch (err) {
-      console.warn('[Metered TURN API] Could not fetch live REST credentials, using static fallback:', err);
     }
 
-    // Static fallback for Metered.live if REST API fetch fails
+    // Generic fallback for openrelay if METERED_API_KEY is not configured
     if (meteredIceServers.length === 0) {
       meteredIceServers = [
-        { urls: 'stun:stun.relay.metered.ca:80' },
         {
-          urls: 'turn:global.relay.metered.ca:80',
-          username: 'ada4e7efb9cd3d9e06f51f6e',
-          credential: 'b0GG+rYGSOVGb5jO',
-        },
-        {
-          urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-          username: 'ada4e7efb9cd3d9e06f51f6e',
-          credential: 'b0GG+rYGSOVGb5jO',
-        },
-        {
-          urls: 'turn:global.relay.metered.ca:443',
-          username: 'ada4e7efb9cd3d9e06f51f6e',
-          credential: 'b0GG+rYGSOVGb5jO',
-        },
-        {
-          urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-          username: 'ada4e7efb9cd3d9e06f51f6e',
-          credential: 'b0GG+rYGSOVGb5jO',
-        },
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp'
+          ],
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        }
       ];
     }
 

@@ -39,26 +39,14 @@ const DEFAULT_STUN_SERVERS: RTCIceServer[] = [
 
 const DEFAULT_ICE_CONFIG: RTCConfiguration = {
   iceServers: [
-    { urls: 'stun:stun.relay.metered.ca:80' },
     {
-      urls: 'turn:global.relay.metered.ca:80',
-      username: 'ada4e7efb9cd3d9e06f51f6e',
-      credential: 'b0GG+rYGSOVGb5jO',
-    },
-    {
-      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-      username: 'ada4e7efb9cd3d9e06f51f6e',
-      credential: 'b0GG+rYGSOVGb5jO',
-    },
-    {
-      urls: 'turn:global.relay.metered.ca:443',
-      username: 'ada4e7efb9cd3d9e06f51f6e',
-      credential: 'b0GG+rYGSOVGb5jO',
-    },
-    {
-      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-      username: 'ada4e7efb9cd3d9e06f51f6e',
-      credential: 'b0GG+rYGSOVGb5jO',
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
     },
     ...DEFAULT_STUN_SERVERS,
   ],
