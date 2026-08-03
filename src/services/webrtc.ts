@@ -140,6 +140,17 @@ export class WebRTCManager {
     this.preloadIceServers();
 
     try {
+      if (this.localStream && this.localStream.active) {
+        const hasVideo = !video || this.localStream.getVideoTracks().some((t) => t.readyState === 'live');
+        const hasAudio = !audio || this.localStream.getAudioTracks().some((t) => t.readyState === 'live');
+        if (hasVideo && hasAudio) {
+          if (this.onLocalStreamCallback) {
+            this.onLocalStreamCallback(this.localStream);
+          }
+          return this.localStream;
+        }
+      }
+
       if (this.localStream) {
         this.stopLocalMedia();
       }
