@@ -90,13 +90,35 @@ export class WebRTCManager {
         const data = await res.json();
         const iceServers: RTCIceServer[] = [];
 
+        const sanitizeUrls = (urlsInput: string | string[], defaultPrefix = 'turn:'): string | string[] => {
+          const ensurePrefix = (str: string) => {
+            const trimmed = str.trim();
+            if (trimmed.startsWith('turn:') || trimmed.startsWith('turns:') || trimmed.startsWith('stun:') || trimmed.startsWith('stuns:')) {
+              return trimmed;
+            }
+            return `${defaultPrefix}${trimmed}`;
+          };
+
+          if (Array.isArray(urlsInput)) {
+            return urlsInput.map(ensurePrefix);
+          }
+          return ensurePrefix(urlsInput);
+        };
+
         // 1. PRIMARY: Metered.live TURN entry (FIRST for all connections)
         if (data.meteredTurn) {
           if (Array.isArray(data.meteredTurn)) {
-            iceServers.push(...data.meteredTurn);
+            for (const entry of data.meteredTurn) {
+              if (entry && entry.urls) {
+                iceServers.push({
+                  ...entry,
+                  urls: sanitizeUrls(entry.urls, 'turn:'),
+                });
+              }
+            }
           } else if (data.meteredTurn.urls) {
             iceServers.push({
-              urls: data.meteredTurn.urls,
+              urls: sanitizeUrls(data.meteredTurn.urls, 'turn:'),
               username: data.meteredTurn.username,
               credential: data.meteredTurn.credential,
             });
@@ -106,7 +128,7 @@ export class WebRTCManager {
         // 2. SECONDARY: ExpressTurn entry
         if (data.expressTurn && data.expressTurn.urls && data.expressTurn.urls.length > 0) {
           iceServers.push({
-            urls: data.expressTurn.urls,
+            urls: sanitizeUrls(data.expressTurn.urls, 'turn:'),
             username: data.expressTurn.username,
             credential: data.expressTurn.credential,
           });
@@ -118,7 +140,7 @@ export class WebRTCManager {
         // 4. TERTIARY: Coturn entry (if configured)
         if (data.coturn && data.coturn.urls && data.coturn.urls.length > 0) {
           iceServers.push({
-            urls: data.coturn.urls,
+            urls: sanitizeUrls(data.coturn.urls, 'turn:'),
             username: data.coturn.username,
             credential: data.coturn.credential,
           });

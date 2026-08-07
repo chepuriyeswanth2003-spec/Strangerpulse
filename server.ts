@@ -397,7 +397,15 @@ async function startServer() {
 
     const EXPRESSTURN_USERNAME = process.env.EXPRESSTURN_USERNAME || '';
     const EXPRESSTURN_CREDENTIAL = process.env.EXPRESSTURN_CREDENTIAL || '';
-    const EXPRESSTURN_URLS = process.env.EXPRESSTURN_URLS ? process.env.EXPRESSTURN_URLS.split(',').map((u) => u.trim()) : [];
+    const EXPRESSTURN_URLS = process.env.EXPRESSTURN_URLS
+      ? process.env.EXPRESSTURN_URLS.split(',').map((u) => {
+          const trimmed = u.trim();
+          if (trimmed.startsWith('turn:') || trimmed.startsWith('turns:') || trimmed.startsWith('stun:') || trimmed.startsWith('stuns:')) {
+            return trimmed;
+          }
+          return `turn:${trimmed}`;
+        })
+      : [];
 
     const TURN_STATIC_SECRET = process.env.TURN_STATIC_SECRET || '';
     const TURN_HOST = process.env.TURN_HOST || '';
