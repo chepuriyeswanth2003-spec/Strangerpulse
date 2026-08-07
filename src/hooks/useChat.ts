@@ -4,7 +4,7 @@ import { UserProfile, PublicProfile, MatchFilters, ChatMessage, RoomInfo } from 
 import { socketService } from '../services/socket';
 import { getStoredProfile, saveStoredProfile, DEFAULT_PROFILE } from '../services/storage';
 import { webrtcManager } from '../services/webrtc';
-import { omegleClientBridge } from '../services/omegleClientBridge';
+import { peerjsService } from '../services/peerjsService';
 
 export type ChatStatus = 'idle' | 'searching' | 'connected';
 
@@ -46,9 +46,42 @@ export function useChat() {
 
   const skipStrangerRef = useRef<() => void>(() => {});
 
-  // Connect socket on mount
+  // Connect socket on mount & setup PeerJS network bridge (Zero CORS)
   useEffect(() => {
     socketService.connect();
+
+    peerjsService.initializePeer().catch((err) => {
+      console.warn('[PeerJS] Could not register on PeerJS cloud node:', err);
+    });
+
+    peerjsService.onRemoteStream = (stream: MediaStream) => {
+      console.log('[PeerJS Network] Setting remote video stream from PeerJS');
+      setRemoteStream(stream);
+    };
+
+    peerjsService.onMessage = (text: string) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: 'msg_' + Date.now(),
+          sender: 'stranger',
+          text,
+          timestamp: Date.now(),
+        },
+      ]);
+    };
+
+    peerjsService.onDisconnected = () => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: 'sys_' + Date.now(),
+          sender: 'system',
+          text: 'Stranger has disconnected.',
+          timestamp: Date.now(),
+        },
+      ]);
+    };
 
     const unsubOnline = socketService.subscribe('online_count', (count: number) => {
       setOnlineCount(count);
@@ -241,7 +274,7 @@ export function useChat() {
   // Cancel queue / search
   const cancelMatchmaking = useCallback(() => {
     socketService.leaveQueue();
-    omegleClientBridge.disconnect();
+    peerjsService.disconnect();
     webrtcManager.closeAll();
     setLocalStream(null);
     setRemoteStream(null);
@@ -264,8 +297,8 @@ export function useChat() {
 
       setMessages((prev) => [...prev, newMsg]);
 
-      if (roomInfo.roomId === 'omegle_client_room') {
-        omegleClientBridge.sendMessage(text.trim());
+      if (roomInfo.roomId.startsWith('peer_')) {
+        peerjsService.sendMessage(text.trim());
       } else {
         socketService.sendMessage(roomInfo.roomId, text.trim());
         socketService.sendTyping(roomInfo.roomId, false);
@@ -294,8 +327,8 @@ export function useChat() {
   const skipStranger = useCallback(() => {
     const currentMode = roomInfo?.mode || profile.preferredFilters.mode || 'video';
     if (roomInfo) {
-      if (roomInfo.roomId === 'omegle_client_room') {
-        omegleClientBridge.disconnect();
+      if (roomInfo.roomId.startsWith('peer_')) {
+        peerjsService.disconnect();
       } else {
         socketService.skipStranger(roomInfo.roomId);
       }
@@ -313,6 +346,7 @@ export function useChat() {
   // End chat and stay idle
   const endChat = useCallback(() => {
     isEndingRef.current = true;
+    peerjsService.disconnect();
     if (roomInfo) {
       socketService.skipStranger(roomInfo.roomId);
     }

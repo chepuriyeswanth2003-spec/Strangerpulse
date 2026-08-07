@@ -28,6 +28,7 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "peerjs": "^1.5.5",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "socket.io": "^4.8.3",
@@ -37,7 +38,6 @@
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
   },
-  "devDependencies": {},
   "allowScripts": {
     "@google/genai@2.14.0": true,
     "protobufjs@7.6.5": true,
