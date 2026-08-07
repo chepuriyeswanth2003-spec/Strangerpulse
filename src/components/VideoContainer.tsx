@@ -125,7 +125,8 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
             autoPlay
             playsInline
             onLoadedMetadata={(e) => e.currentTarget.play().catch(() => {})}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transform-gpu"
+            style={{ willChange: 'transform', transform: 'translateZ(0)' }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
@@ -210,7 +211,8 @@ export const VideoContainer: React.FC<VideoContainerProps> = ({
               muted
               playsInline
               onLoadedMetadata={(e) => e.currentTarget.play().catch(() => {})}
-              className="w-full h-full object-cover transform -scale-x-100"
+              className="w-full h-full object-cover transform -scale-x-100 transform-gpu"
+              style={{ willChange: 'transform', transform: 'scaleX(-1) translateZ(0)' }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-zinc-500 text-[10px]">

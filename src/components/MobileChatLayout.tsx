@@ -118,7 +118,8 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transform-gpu"
+              style={{ willChange: 'transform', transform: 'translateZ(0)' }}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-950">
@@ -183,7 +184,8 @@ export const MobileChatLayout: React.FC<MobileChatLayoutProps> = ({
                   autoPlay
                   muted
                   playsInline
-                  className="w-full h-full object-cover transform -scale-x-100"
+                  className="w-full h-full object-cover transform -scale-x-100 transform-gpu"
+                  style={{ willChange: 'transform', transform: 'scaleX(-1) translateZ(0)' }}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-500">

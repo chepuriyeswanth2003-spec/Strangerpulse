@@ -202,13 +202,13 @@ export class WebRTCManager {
         this.stopLocalMedia();
       }
 
-      // Try standard 720p constraints with 3.5s hardware timeout safeguard
+      // Optimized qHD 540p profile for zero-lag smooth 30 FPS video streaming
       this.localStream = await this.getMediaStreamWithTimeout({
         video: video
           ? {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 30 },
+              width: { ideal: 960, max: 1280 },
+              height: { ideal: 540, max: 720 },
+              frameRate: { ideal: 30, max: 30 },
               facingMode: 'user',
             }
           : false,
@@ -525,8 +525,9 @@ export class WebRTCManager {
           params.encodings = [{}];
         }
         params.encodings[0].maxBitrate = targetMaxBitrate;
+        params.encodings[0].maxFramerate = 30;
         // @ts-ignore
-        params.degradationPreference = 'balanced';
+        params.degradationPreference = 'maintain-framerate';
         videoSender.setParameters(params).catch(() => {});
       } catch (e) {
         // Ignore setParameters error
