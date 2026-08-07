@@ -619,8 +619,8 @@ async function startServer() {
         !candidate.filters.commonInterests ||
         candidate.profile.interests.some((i) => other.profile.interests.includes(i));
 
-      // Priority criteria OR random fallback after 5s wait time
-      const isMatch = (genderMatch && countryMatch && langMatch && hasInterestOverlap) || (waitingTime > 5000 && candidate.filters.globalSearch);
+      // Priority criteria OR quick global fallback after 2s wait time
+      const isMatch = (genderMatch && countryMatch && langMatch && hasInterestOverlap) || waitingTime > 2000;
 
       if (isMatch) {
         // Remove both from waiting queue
@@ -667,22 +667,24 @@ async function startServer() {
     }
   };
 
-  // Periodic Matchmaker Loop for queued strangers & Omegle bridge fallback
-  setInterval(() => {
+  // Periodic Matchmaker Loop for queued strangers & optional network bridge
+  setInterval(async () => {
     for (const user of [...waitingQueue]) {
       tryMatchUser(user);
     }
 
-    // If a user has been waiting for > 2.5s and no local user matched, bridge to Omegle network
+    // Attempt network bridge only if user has been waiting > 6s and no local user matched
     if (waitingQueue.length > 0) {
       const now = Date.now();
       for (const candidate of [...waitingQueue]) {
-        if (now - candidate.joinedAt > 2500 && !omegleBridge.hasSession(candidate.socketId)) {
+        if (now - candidate.joinedAt > 6000 && !omegleBridge.hasSession(candidate.socketId)) {
           const candidateSocket = io.sockets.sockets.get(candidate.socketId);
           if (candidateSocket) {
-            waitingQueue = waitingQueue.filter((u) => u.socketId !== candidate.socketId);
-            console.log(`[Omegle Bridge] Bridging socket ${candidate.socketId} to global Omegle network...`);
-            omegleBridge.startBridge(candidate.socketId, candidateSocket, candidate.filters.mode);
+            console.log(`[Omegle Bridge] Attempting bridge for socket ${candidate.socketId}...`);
+            const success = await omegleBridge.startBridge(candidate.socketId, candidateSocket, candidate.filters.mode);
+            if (success) {
+              waitingQueue = waitingQueue.filter((u) => u.socketId !== candidate.socketId);
+            }
           }
         }
       }
