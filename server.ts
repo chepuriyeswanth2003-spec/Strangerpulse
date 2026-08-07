@@ -137,6 +137,199 @@ const activeRooms = new Map<string, ActiveRoom>();
 const blockedPairs = new Set<string>(); // "socketA_socketB"
 const socketRateLimits = new Map<string, { count: number; lastReset: number }>();
 
+// OMEGLE NETWORK BRIDGE MANAGER
+class OmegleBridgeManager {
+  private activeBridgeSessions = new Map<string, {
+    socketId: string;
+    clientId: string;
+    polling: boolean;
+    serverUrl: string;
+  }>();
+
+  public hasSession(socketId: string): boolean {
+    return this.activeBridgeSessions.has(socketId);
+  }
+
+  public async startBridge(socketId: string, socket: Socket, mode: 'text' | 'video'): Promise<boolean> {
+    const servers = ['https://omegle.online', 'https://front1.omegle.com', 'https://front2.omegle.com'];
+    const targetServer = servers[Math.floor(Math.random() * servers.length)];
+    const randid = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    try {
+      const params = new URLSearchParams({
+        caps: 'recaptcha2,statuslog',
+        rcs: '1',
+        spb: '0',
+        firstevents: '1',
+        randid,
+      });
+
+      if (mode === 'video') {
+        params.append('topics', JSON.stringify(['video']));
+      }
+
+      const res = await fetch(`${targetServer}/start?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      });
+
+      if (!res.ok) return false;
+
+      const data = await res.json();
+      if (!data || !data.clientID) return false;
+
+      const clientId = data.clientID;
+      const roomId = `omegle_${clientId}`;
+
+      this.activeBridgeSessions.set(socketId, {
+        socketId,
+        clientId,
+        polling: true,
+        serverUrl: targetServer,
+      });
+
+      socket.emit('match_found', {
+        roomId,
+        partnerProfile: {
+          nickname: 'Stranger',
+          gender: 'Unspecified',
+          country: 'Global Network',
+          languages: ['English'],
+          interests: [],
+        },
+        isInitiator: false,
+        mode,
+      });
+
+      if (data.events) {
+        this.processOmegleEvents(socketId, socket, roomId, targetServer, clientId, data.events);
+      }
+
+      this.pollEvents(socketId, socket, roomId, targetServer, clientId);
+      return true;
+    } catch (err) {
+      console.warn('[Omegle Bridge] Error connecting to network:', err);
+      return false;
+    }
+  }
+
+  private async pollEvents(socketId: string, socket: Socket, roomId: string, serverUrl: string, clientId: string) {
+    while (this.activeBridgeSessions.has(socketId)) {
+      const session = this.activeBridgeSessions.get(socketId);
+      if (!session || !session.polling) break;
+
+      try {
+        const body = new URLSearchParams({ id: clientId });
+        const res = await fetch(`${serverUrl}/events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+
+        if (!res.ok) break;
+
+        const events = await res.json();
+        if (events === null || !Array.isArray(events)) {
+          this.disconnectBridge(socketId, socket, roomId);
+          break;
+        }
+
+        this.processOmegleEvents(socketId, socket, roomId, serverUrl, clientId, events);
+      } catch (err) {
+        break;
+      }
+    }
+  }
+
+  private processOmegleEvents(socketId: string, socket: Socket, roomId: string, serverUrl: string, clientId: string, events: any[]) {
+    for (const ev of events) {
+      if (!Array.isArray(ev)) continue;
+      const type = ev[0];
+
+      if (type === 'gotMessage') {
+        socket.emit('receive_message', {
+          id: `msg_${Date.now()}`,
+          sender: 'stranger',
+          text: ev[1],
+          timestamp: Date.now(),
+        });
+      } else if (type === 'typing') {
+        socket.emit('partner_typing', true);
+      } else if (type === 'stoppedTyping') {
+        socket.emit('partner_typing', false);
+      } else if (type === 'strangerDisconnected') {
+        socket.emit('stranger_disconnected');
+        this.disconnectBridge(socketId, socket, roomId);
+      } else if (type === 'webrtc_offer') {
+        socket.emit('webrtc_offer', ev[1]);
+      } else if (type === 'webrtc_ice_candidate') {
+        socket.emit('webrtc_ice_candidate', ev[1]);
+      }
+    }
+  }
+
+  public async sendTextMessage(socketId: string, text: string) {
+    const session = this.activeBridgeSessions.get(socketId);
+    if (!session) return;
+    try {
+      const body = new URLSearchParams({ id: session.clientId, msg: text });
+      await fetch(`${session.serverUrl}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+    } catch (e) {}
+  }
+
+  public async sendWebRTCAnswer(socketId: string, answer: any) {
+    const session = this.activeBridgeSessions.get(socketId);
+    if (!session) return;
+    try {
+      const body = new URLSearchParams({ id: session.clientId, answer: JSON.stringify(answer) });
+      await fetch(`${session.serverUrl}/webrtc_answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+    } catch (e) {}
+  }
+
+  public async sendICECandidate(socketId: string, candidate: any) {
+    const session = this.activeBridgeSessions.get(socketId);
+    if (!session) return;
+    try {
+      const body = new URLSearchParams({ id: session.clientId, candidate: JSON.stringify(candidate) });
+      await fetch(`${session.serverUrl}/ice_candidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+    } catch (e) {}
+  }
+
+  public async disconnectBridge(socketId: string, socket?: Socket, roomId?: string) {
+    const session = this.activeBridgeSessions.get(socketId);
+    if (!session) return;
+    session.polling = false;
+    this.activeBridgeSessions.delete(socketId);
+
+    try {
+      const body = new URLSearchParams({ id: session.clientId });
+      await fetch(`${session.serverUrl}/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+    } catch (e) {}
+
+    if (socket && roomId) {
+      socket.emit('stranger_disconnected');
+    }
+  }
+}
+
+const omegleBridge = new OmegleBridgeManager();
+
 async function startServer() {
   const app = express();
   app.use(express.json());
@@ -474,10 +667,25 @@ async function startServer() {
     }
   };
 
-  // Periodic Matchmaker Loop for queued strangers
+  // Periodic Matchmaker Loop for queued strangers & Omegle bridge fallback
   setInterval(() => {
     for (const user of [...waitingQueue]) {
       tryMatchUser(user);
+    }
+
+    // If a user has been waiting for > 2.5s and no local user matched, bridge to Omegle network
+    if (waitingQueue.length > 0) {
+      const now = Date.now();
+      for (const candidate of [...waitingQueue]) {
+        if (now - candidate.joinedAt > 2500 && !omegleBridge.hasSession(candidate.socketId)) {
+          const candidateSocket = io.sockets.sockets.get(candidate.socketId);
+          if (candidateSocket) {
+            waitingQueue = waitingQueue.filter((u) => u.socketId !== candidate.socketId);
+            console.log(`[Omegle Bridge] Bridging socket ${candidate.socketId} to global Omegle network...`);
+            omegleBridge.startBridge(candidate.socketId, candidateSocket, candidate.filters.mode);
+          }
+        }
+      }
     }
   }, 1500);
 
@@ -507,8 +715,11 @@ async function startServer() {
     socket.on('join_queue', (data: { profile: PublicProfile; filters: MatchFilters }) => {
       if (!checkRateLimit(socket.id)) return;
 
-      // Remove from queue if already present
+      // Remove from queue & cleanup existing bridge if any
       waitingQueue = waitingQueue.filter((u) => u.socketId !== socket.id);
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.disconnectBridge(socket.id);
+      }
 
       const queueItem: QueueUser = {
         socketId: socket.id,
@@ -524,12 +735,20 @@ async function startServer() {
     // Leave Matchmaking Queue
     socket.on('leave_queue', () => {
       waitingQueue = waitingQueue.filter((u) => u.socketId !== socket.id);
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.disconnectBridge(socket.id);
+      }
     });
 
     // Send Chat Message
     socket.on('send_message', (data: { roomId: string; text: string }) => {
       if (!checkRateLimit(socket.id)) return;
-      if (!data.text || !data.roomId) return;
+      if (!data.text) return;
+
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.sendTextMessage(socket.id, data.text);
+        return;
+      }
 
       const room = activeRooms.get(data.roomId);
       if (!room) return;
@@ -554,6 +773,11 @@ async function startServer() {
 
     // Skip Stranger / End Chat
     socket.on('skip_stranger', (data: { roomId: string }) => {
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.disconnectBridge(socket.id, socket, data.roomId);
+        return;
+      }
+
       const room = activeRooms.get(data.roomId);
       if (room) {
         io.to(data.roomId).emit('stranger_disconnected');
@@ -567,16 +791,29 @@ async function startServer() {
     });
 
     socket.on('webrtc_answer', (data: { roomId: string; answer: any }) => {
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.sendWebRTCAnswer(socket.id, data.answer);
+        return;
+      }
       socket.to(data.roomId).emit('webrtc_answer', data.answer);
     });
 
     socket.on('webrtc_ice_candidate', (data: { roomId: string; candidate: any }) => {
       if (!checkRateLimit(socket.id)) return;
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.sendICECandidate(socket.id, data.candidate);
+        return;
+      }
       socket.to(data.roomId).emit('webrtc_ice_candidate', data.candidate);
     });
 
     // Safety: Report & Block (Persisted to disk)
     socket.on('report_user', (data: { roomId: string; reason: string; details?: string }) => {
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.disconnectBridge(socket.id, socket, data.roomId);
+        return;
+      }
+
       const newReport: ReportEntry = {
         id: `rep_${Date.now()}`,
         roomId: data.roomId,
@@ -601,6 +838,11 @@ async function startServer() {
     });
 
     socket.on('block_user', (data: { roomId: string }) => {
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.disconnectBridge(socket.id, socket, data.roomId);
+        return;
+      }
+
       const room = activeRooms.get(data.roomId);
       if (room) {
         const partnerId = room.userA === socket.id ? room.userB : room.userA;
@@ -617,6 +859,9 @@ async function startServer() {
 
     // Disconnect
     socket.on('disconnect', () => {
+      if (omegleBridge.hasSession(socket.id)) {
+        omegleBridge.disconnectBridge(socket.id);
+      }
       connectedUsers.delete(socket.id);
       waitingQueue = waitingQueue.filter((u) => u.socketId !== socket.id);
       socketRateLimits.delete(socket.id);
