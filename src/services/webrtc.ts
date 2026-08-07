@@ -1,8 +1,8 @@
 import { socketService } from './socket';
 
-export const BITRATE_INITIAL_START_BPS = 800000; // 800 kbps smooth start
-export const BITRATE_CEILING_BPS = 2000000;      // 2.0 Mbps Ceiling
-export const BITRATE_FLOOR_BPS = 150000;        // 150 kbps Floor
+export const BITRATE_INITIAL_START_BPS = 1200000; // 1.2 Mbps Smooth Start
+export const BITRATE_CEILING_BPS = 2500000;       // 2.5 Mbps HD Ceiling
+export const BITRATE_FLOOR_BPS = 500000;         // 500 kbps Floor
 
 function setSDPBitrate(sdp: string, bitrateKbps: number = 1500): string {
   let lines = sdp.split('\r\n');
@@ -463,7 +463,8 @@ export class WebRTCManager {
         const totalPackets = deltaSent + deltaLost;
         const lossRatio = totalPackets > 0 ? deltaLost / totalPackets : 0;
 
-        const isUnhealthy = lossRatio > 0.05 || rttMs > 300;
+        // Only flag unhealthy if actual packet loss occurs (> 4%) OR extreme sustained RTT (> 4500ms with loss)
+        const isUnhealthy = lossRatio > 0.04 || (rttMs > 4500 && lossRatio > 0.01);
 
         if (isUnhealthy) {
           this.unhealthyPollCount++;
