@@ -135,6 +135,31 @@ export class WebRTCManager {
     }
   }
 
+  private async getMediaStreamWithTimeout(constraints: MediaStreamConstraints, timeoutMs: number = 3500): Promise<MediaStream> {
+    return new Promise<MediaStream>((resolve, reject) => {
+      let timer: NodeJS.Timeout | null = setTimeout(() => {
+        timer = null;
+        reject(new DOMException('Camera request timed out', 'AbortError'));
+      }, timeoutMs);
+
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then((stream) => {
+          if (timer) {
+            clearTimeout(timer);
+            resolve(stream);
+          } else {
+            stream.getTracks().forEach((t) => t.stop());
+          }
+        })
+        .catch((err) => {
+          if (timer) {
+            clearTimeout(timer);
+            reject(err);
+          }
+        });
+    });
+  }
+
   public async getLocalMedia(video: boolean = true, audio: boolean = true): Promise<MediaStream | null> {
     // Pre-fetch ice servers when local camera initializes
     this.preloadIceServers();
@@ -155,7 +180,8 @@ export class WebRTCManager {
         this.stopLocalMedia();
       }
 
-      this.localStream = await navigator.mediaDevices.getUserMedia({
+      // Try standard 720p constraints with 3.5s hardware timeout safeguard
+      this.localStream = await this.getMediaStreamWithTimeout({
         video: video
           ? {
               width: { ideal: 1280 },
@@ -165,7 +191,7 @@ export class WebRTCManager {
             }
           : false,
         audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
-      });
+      }, 3500);
 
       if (this.onLocalStreamCallback) {
         this.onLocalStreamCallback(this.localStream);
@@ -173,27 +199,33 @@ export class WebRTCManager {
 
       return this.localStream;
     } catch (err) {
-      console.error('Error accessing media devices:', err);
+      console.warn('Primary camera stream acquisition timed out or rejected (hardware lock/busy):', err);
+
+      // Fast Fallback 1: Simple video constraints
       if (video) {
         try {
-          this.localStream = await navigator.mediaDevices.getUserMedia({
+          this.localStream = await this.getMediaStreamWithTimeout({
             video: true,
             audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
-          });
+          }, 2500);
+
           if (this.onLocalStreamCallback && this.localStream) {
             this.onLocalStreamCallback(this.localStream);
           }
           return this.localStream;
         } catch (subErr) {
+          console.warn('Simple video acquisition failed, attempting audio-only fallback:', subErr);
+
+          // Fast Fallback 2: Audio-only stream if webcam is hardware-locked by another app
           if (audio) {
             try {
-              this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+              this.localStream = await this.getMediaStreamWithTimeout({ video: false, audio: true }, 2500);
               if (this.onLocalStreamCallback && this.localStream) {
                 this.onLocalStreamCallback(this.localStream);
               }
               return this.localStream;
             } catch (audioErr) {
-              console.error('Error accessing audio device:', audioErr);
+              console.error('Audio fallback also failed or timed out:', audioErr);
             }
           }
         }
