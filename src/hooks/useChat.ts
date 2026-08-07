@@ -4,6 +4,7 @@ import { UserProfile, PublicProfile, MatchFilters, ChatMessage, RoomInfo } from 
 import { socketService } from '../services/socket';
 import { getStoredProfile, saveStoredProfile, DEFAULT_PROFILE } from '../services/storage';
 import { webrtcManager } from '../services/webrtc';
+import { omegleClientBridge } from '../services/omegleClientBridge';
 
 export type ChatStatus = 'idle' | 'searching' | 'connected';
 
@@ -226,14 +227,49 @@ export function useChat() {
       }
 
       socketService.joinQueue(publicProfile, updatedFilters);
+
+      // Client-side Omegle network bridge fallback if no local VibeStream match found after 3.5s
+      setTimeout(async () => {
+        if (status === 'searching') {
+          console.log('[Omegle Client Bridge] Connecting browser directly to Omegle network...');
+          const connected = await omegleClientBridge.connectToOmegleNetwork(activeMode);
+          if (connected) {
+            socketService.leaveQueue();
+            const room: RoomInfo = {
+              roomId: 'omegle_client_room',
+              partnerProfile: {
+                nickname: 'Stranger',
+                gender: 'prefer-not-to-say',
+                country: 'Global Network',
+                languages: ['English'],
+                interests: [],
+              },
+              isInitiator: false,
+              mode: activeMode,
+            };
+            setRoomInfo(room);
+            setStatus('connected');
+            setMessages([
+              {
+                id: 'sys_' + Date.now(),
+                sender: 'system',
+                text: 'Connected with a Stranger on the Global Omegle Network! Say hello! 👋',
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+        }
+      }, 3500);
+
       return true;
     },
-    [profile, updateProfile]
+    [profile, updateProfile, status]
   );
 
   // Cancel queue / search
   const cancelMatchmaking = useCallback(() => {
     socketService.leaveQueue();
+    omegleClientBridge.disconnect();
     webrtcManager.closeAll();
     setLocalStream(null);
     setRemoteStream(null);
@@ -255,8 +291,13 @@ export function useChat() {
       };
 
       setMessages((prev) => [...prev, newMsg]);
-      socketService.sendMessage(roomInfo.roomId, text.trim());
-      socketService.sendTyping(roomInfo.roomId, false);
+
+      if (roomInfo.roomId === 'omegle_client_room') {
+        omegleClientBridge.sendMessage(text.trim());
+      } else {
+        socketService.sendMessage(roomInfo.roomId, text.trim());
+        socketService.sendTyping(roomInfo.roomId, false);
+      }
     },
     [roomInfo]
   );
@@ -281,7 +322,11 @@ export function useChat() {
   const skipStranger = useCallback(() => {
     const currentMode = roomInfo?.mode || profile.preferredFilters.mode || 'video';
     if (roomInfo) {
-      socketService.skipStranger(roomInfo.roomId);
+      if (roomInfo.roomId === 'omegle_client_room') {
+        omegleClientBridge.disconnect();
+      } else {
+        socketService.skipStranger(roomInfo.roomId);
+      }
     }
     webrtcManager.cleanupPeerConnection();
     setRemoteStream(null);

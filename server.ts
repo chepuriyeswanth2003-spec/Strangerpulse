@@ -330,132 +330,6 @@ class OmegleBridgeManager {
 
 const omegleBridge = new OmegleBridgeManager();
 
-// AI STRANGER FALLBACK BOT MANAGER (For low-traffic / 1-user fallback)
-interface AiBotSession {
-  socketId: string;
-  partnerProfile: PublicProfile;
-  mode: 'text' | 'video';
-  roomId: string;
-  typingTimer?: NodeJS.Timeout;
-  replyTimer?: NodeJS.Timeout;
-}
-
-class AiStrangerManager {
-  private activeBots = new Map<string, AiBotSession>();
-
-  private botProfiles: PublicProfile[] = [
-    { nickname: 'Alex', gender: 'male', country: 'United States', languages: ['English'], interests: ['Music', 'Travel', 'Gaming'] },
-    { nickname: 'Sarah', gender: 'female', country: 'United Kingdom', languages: ['English'], interests: ['Movies', 'Art', 'Photography'] },
-    { nickname: 'Leo', gender: 'male', country: 'Canada', languages: ['English'], interests: ['Fitness', 'Technology', 'Cooking'] },
-    { nickname: 'Emma', gender: 'female', country: 'Australia', languages: ['English'], interests: ['Surfing', 'Music', 'Books'] },
-    { nickname: 'Maya', gender: 'female', country: 'Germany', languages: ['English', 'German'], interests: ['Design', 'Travel', 'Coffee'] },
-    { nickname: 'Lucas', gender: 'male', country: 'France', languages: ['English', 'French'], interests: ['Anime', 'Coding', 'Sports'] },
-  ];
-
-  private botCannedReplies = [
-    "Hey there! How's your day going? 😊",
-    "Hi! Nice to meet you! Where are you connecting from?",
-    "Hey! I was just browsing around. What are you up to today?",
-    "Hello! Always cool to chat with someone new on here ✨",
-    "Hey! What kind of music or movies do you like?",
-    "Haha that's awesome! Tell me more about that!",
-    "Pretty cool! I'm just relaxing right now.",
-    "Nice! It's super friendly chatting with you!",
-  ];
-
-  public hasBot(socketId: string): boolean {
-    return this.activeBots.has(socketId);
-  }
-
-  public startBotSession(socketId: string, socket: Socket, mode: 'text' | 'video') {
-    const profile = this.botProfiles[Math.floor(Math.random() * this.botProfiles.length)];
-    const roomId = `ai_room_${Math.random().toString(36).substring(2, 9)}`;
-
-    const botSession: AiBotSession = {
-      socketId,
-      partnerProfile: profile,
-      mode,
-      roomId,
-    };
-
-    this.activeBots.set(socketId, botSession);
-
-    socket.emit('match_found', {
-      roomId,
-      partnerProfile: profile,
-      isInitiator: false,
-      mode,
-    });
-
-    // Send initial greeting after 1.2s
-    setTimeout(() => {
-      if (!this.activeBots.has(socketId)) return;
-      socket.emit('partner_typing', true);
-      setTimeout(() => {
-        if (!this.activeBots.has(socketId)) return;
-        socket.emit('partner_typing', false);
-        const initialGreeting = this.botCannedReplies[Math.floor(Math.random() * 4)];
-        socket.emit('receive_message', {
-          id: `msg_ai_${Date.now()}`,
-          sender: 'stranger',
-          text: initialGreeting,
-          timestamp: Date.now(),
-        });
-      }, 1500);
-    }, 1000);
-  }
-
-  public handleUserMessage(socketId: string, socket: Socket, text: string) {
-    const botSession = this.activeBots.get(socketId);
-    if (!botSession) return;
-
-    socket.emit('partner_typing', true);
-    const delay = Math.min(3500, Math.max(1200, text.length * 70));
-
-    setTimeout(() => {
-      if (!this.activeBots.has(socketId)) return;
-      socket.emit('partner_typing', false);
-
-      let reply = "That's super cool! Tell me more!";
-      const lower = text.toLowerCase();
-      if (lower.includes('hi') || lower.includes('hello') || lower.includes('hey')) {
-        reply = "Hey! Really nice meeting you! How has your week been?";
-      } else if (lower.includes('how are you') || lower.includes('how r u')) {
-        reply = "I'm doing great, thank you for asking! How about you?";
-      } else if (lower.includes('where') || lower.includes('country') || lower.includes('from')) {
-        reply = `I'm from ${botSession.partnerProfile.country}! What about you?`;
-      } else if (lower.includes('name') || lower.includes('who')) {
-        reply = `My name is ${botSession.partnerProfile.nickname}! What's yours?`;
-      } else if (lower.includes('bye') || lower.includes('cya')) {
-        reply = "It was awesome chatting with you! Take care! 👋";
-      } else {
-        reply = this.botCannedReplies[Math.floor(Math.random() * this.botCannedReplies.length)];
-      }
-
-      socket.emit('receive_message', {
-        id: `msg_ai_${Date.now()}`,
-        sender: 'stranger',
-        text: reply,
-        timestamp: Date.now(),
-      });
-    }, delay);
-  }
-
-  public stopBotSession(socketId: string, socket?: Socket) {
-    const botSession = this.activeBots.get(socketId);
-    if (botSession) {
-      if (botSession.typingTimer) clearTimeout(botSession.typingTimer);
-      if (botSession.replyTimer) clearTimeout(botSession.replyTimer);
-      this.activeBots.delete(socketId);
-    }
-    if (socket) {
-      socket.emit('stranger_disconnected');
-    }
-  }
-}
-
-const aiStrangerManager = new AiStrangerManager();
-
 async function startServer() {
   const app = express();
   app.use(express.json());
@@ -793,25 +667,10 @@ async function startServer() {
     }
   };
 
-  // Periodic Matchmaker Loop for queued strangers & AI fallback
-  setInterval(async () => {
+  // Periodic Matchmaker Loop for queued strangers
+  setInterval(() => {
     for (const user of [...waitingQueue]) {
       tryMatchUser(user);
-    }
-
-    // If a user has been waiting for > 4s and no local user matched, assign AI Stranger bot!
-    if (waitingQueue.length > 0) {
-      const now = Date.now();
-      for (const candidate of [...waitingQueue]) {
-        if (now - candidate.joinedAt > 4000 && !omegleBridge.hasSession(candidate.socketId) && !aiStrangerManager.hasBot(candidate.socketId)) {
-          const candidateSocket = io.sockets.sockets.get(candidate.socketId);
-          if (candidateSocket) {
-            console.log(`[AI Bot] Assigning AI stranger fallback for socket ${candidate.socketId}`);
-            waitingQueue = waitingQueue.filter((u) => u.socketId !== candidate.socketId);
-            aiStrangerManager.startBotSession(candidate.socketId, candidateSocket, candidate.filters.mode);
-          }
-        }
-      }
     }
   }, 1500);
 
@@ -841,13 +700,10 @@ async function startServer() {
     socket.on('join_queue', (data: { profile: PublicProfile; filters: MatchFilters }) => {
       if (!checkRateLimit(socket.id)) return;
 
-      // Remove from queue & cleanup existing session if any
+      // Remove from queue & cleanup existing bridge if any
       waitingQueue = waitingQueue.filter((u) => u.socketId !== socket.id);
       if (omegleBridge.hasSession(socket.id)) {
         omegleBridge.disconnectBridge(socket.id);
-      }
-      if (aiStrangerManager.hasBot(socket.id)) {
-        aiStrangerManager.stopBotSession(socket.id);
       }
 
       const queueItem: QueueUser = {
@@ -867,20 +723,12 @@ async function startServer() {
       if (omegleBridge.hasSession(socket.id)) {
         omegleBridge.disconnectBridge(socket.id);
       }
-      if (aiStrangerManager.hasBot(socket.id)) {
-        aiStrangerManager.stopBotSession(socket.id);
-      }
     });
 
     // Send Chat Message
     socket.on('send_message', (data: { roomId: string; text: string }) => {
       if (!checkRateLimit(socket.id)) return;
       if (!data.text) return;
-
-      if (aiStrangerManager.hasBot(socket.id)) {
-        aiStrangerManager.handleUserMessage(socket.id, socket, data.text);
-        return;
-      }
 
       if (omegleBridge.hasSession(socket.id)) {
         omegleBridge.sendTextMessage(socket.id, data.text);
@@ -910,11 +758,6 @@ async function startServer() {
 
     // Skip Stranger / End Chat
     socket.on('skip_stranger', (data: { roomId: string }) => {
-      if (aiStrangerManager.hasBot(socket.id)) {
-        aiStrangerManager.stopBotSession(socket.id, socket);
-        return;
-      }
-
       if (omegleBridge.hasSession(socket.id)) {
         omegleBridge.disconnectBridge(socket.id, socket, data.roomId);
         return;
