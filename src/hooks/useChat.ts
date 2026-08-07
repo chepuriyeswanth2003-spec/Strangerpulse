@@ -231,47 +231,8 @@ export function useChat() {
         if (stream) setLocalStream(stream);
       }
 
-      console.log(`[VibeStream Matchmaking] Joined local queue. Waiting for local VibeStream strangers or Omegle bridge fallback...`);
+      console.log(`[VibeStream Matchmaking] Joined queue as ${publicProfile.nickname}. Searching for active strangers...`);
       socketService.joinQueue(publicProfile, updatedFilters);
-
-      // Client-side Omegle network bridge fallback if no local VibeStream match found after 3.5s
-      setTimeout(async () => {
-        if (statusRef.current === 'searching') {
-          console.log('[Omegle Client Bridge] 3.5s elapsed. No local VibeStream stranger found. Initiating browser bridge to Omegle network...');
-          const connected = await omegleClientBridge.connectToOmegleNetwork(activeMode);
-          if (connected) {
-            console.log('[Omegle Client Bridge] Successfully connected browser to Omegle stranger!');
-            socketService.leaveQueue();
-            const room: RoomInfo = {
-              roomId: 'omegle_client_room',
-              partnerProfile: {
-                nickname: 'Stranger',
-                gender: 'prefer-not-to-say',
-                country: 'Global Network',
-                languages: ['English'],
-                interests: [],
-              },
-              isInitiator: false,
-              mode: activeMode,
-            };
-            setRoomInfo(room);
-            setStatus('connected');
-            setMessages([
-              {
-                id: 'sys_' + Date.now(),
-                sender: 'system',
-                text: 'Connected with a Stranger on the Global Omegle Network! Say hello! 👋',
-                timestamp: Date.now(),
-              },
-            ]);
-          } else {
-            console.error('[Omegle Client Bridge Failure] Browser could not reach external Omegle network nodes. Browser CORS policy or cross-origin restrictions prevented direct frontend fetch.');
-          }
-        } else {
-          console.log(`[VibeStream Matchmaking] Search status is now '${statusRef.current}', skipping Omegle bridge trigger.`);
-        }
-      }, 3500);
-
       return true;
     },
     [profile, updateProfile]
